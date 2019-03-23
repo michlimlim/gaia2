@@ -33,7 +33,7 @@ def main():
         for j in range(len(clusters)):
             if k != j:
                 clusters[k].set_latency_to(clusters[j], (k + j) % max_server_latency)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         result = executor.map(launch_cluster, clusters)
 
 def launch_cluster(cluster):
