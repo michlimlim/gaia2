@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import time, sys
 from helpers import import_data_from_file
+import numpy as np
+import concurrent.futures
 
 class Cluster:
     MAX_ID = 0
@@ -11,22 +13,24 @@ class Cluster:
         # :param data_set [array<array<int>>] rows of a dataset where the first element contains the class of the row
         # :return [Cluster] a new Cluster instance
         self.machine_speed = machine_speed
-        self.data_set = []
+        self.X = 0
+        self.y = 0 
         self.latency_table = {}
         self.cluster_table = {}
         self.id = Cluster.MAX_ID + 1
         Cluster.MAX_ID += 1
     
-    def id(self):
+    def get_id(self):
         ## Get the ID for this cluster.
         # return [int] the ID
         return self.id
 
-    def set_data_set(self, data_set):
+    def set_data_set(self, X, y):
         ## Set the data set on which this cluster will train.
         # :param data_set [array<array<int>>] rowws of a dataset where the first element of each,
         #  row indicates the class of the row.
-        self.data_set = data_set
+        self.X = X
+        self.y = y
 
     def set_latency_to(self, cluster, latency):
         ## Set the latency this cluster has when sendin messages to another cluster.
@@ -35,30 +39,43 @@ class Cluster:
         # set to zero.
         # :param cluster [Cluster] the cluster to which the latency is set
         # :param latency [float] the latency betwween clusters in seconds
-        self.latency_table[cluster.id()] = latency
-        self.cluster_table[cluster.id()] = cluster
+        self.latency_table[cluster.get_id()] = latency
+        self.cluster_table[cluster.get_id()] = cluster
 
     def go(self):
         # If I want to send a message to another cluster: 
         # time.sleep(self.latency_table[j])
         # self.cluster_table[j].some_func()
-        pass
+        print("hello")
+        return "hello"
+
+def launch_cluster(cluster):
+    return cluster.go()
         
 def main():
-    all_data = import_data_from_file(sys.argv[1])
+    ## TODO: Use real data  
+    # all_data = import_data_from_file(sys.argv[1])
+
+    # Generate Data 
+    X = 2 * np.random.rand(100,1)
+    y = 4 +3 * X + np.random.randn(100,1)
+
     max_machine_speed = 3
     max_server_latency = 5
     ## TODO: Figure out a way to have clusters dies and come back.
     clusters = [Cluster(k % max_machine_speed) for k in range(100)]
     ## TODO: Refactor and design a better assignment schema.
+    size_of_data_partition = len(X) // len(clusters)
     for k in range(len(clusters)):
-        low = k * len(all_data) / len(clusters)
-        hi = (k + 1) * len(all_data) / len(clusters)
-        clusters[k].set_data_set(all_data[low:hi])
+        low = k * size_of_data_partition
+        hi = (k + 1) * size_of_data_partition
+        clusters[k].set_data_set(X[low:hi], y[low:hi])
     for k in range(len(clusters)):
         for j in range(len(clusters)):
             if k != j:
                 clusters[k].set_latency_to(clusters[j], (k + j) % max_server_latency)
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        result = executor.map(launch_cluster, clusters)
 
 if __name__ == "__main__":
     main()
