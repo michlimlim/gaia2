@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 import numpy as np
 ## Based on code on basic SGD on linear regression: https://towardsdatascience.com/gradient-descent-in-python-a0d07285742f 
 
@@ -17,7 +18,7 @@ def  cal_cost(theta,X,y):
     m = len(y)
     
     predictions = X.dot(theta)
-    cost = (1/2*m) * np.sum(np.square(predictions-y))
+    cost = (1/(2*m)) * np.sum(np.square(predictions-y))
     return cost
 
 def compute_local_theta(m, X, y, theta, cost):
