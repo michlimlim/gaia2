@@ -3,6 +3,7 @@ import time, sys
 from helpers import import_data_from_file
 import numpy as np
 import concurrent.futures
+from sgd import compute_local_theta
 
 class Cluster:
     MAX_ID = 0
@@ -29,7 +30,7 @@ class Cluster:
         ## Set the data set on which this cluster will train.
         # :param data_set [array<array<int>>] rowws of a dataset where the first element of each,
         #  row indicates the class of the row.
-        self.X = X
+        self.X = np.c_[np.ones((len(X),1)),X]
         self.y = y
 
     def set_latency_to(self, cluster, latency):
@@ -46,8 +47,30 @@ class Cluster:
         # If I want to send a message to another cluster: 
         # time.sleep(self.latency_table[j])
         # self.cluster_table[j].some_func()
-        print("hello")
-        return "hello"
+        '''
+        X    = Matrix of X with added bias units
+        y    = Vector of Y
+        theta=Vector of thetas np.random.randn(j,1)
+        learning_rate 
+        iterations = no of iterations
+        
+        Returns the final theta vector and array of cost history over no of iterations
+        '''
+        iterations = 50
+        theta = np.random.randn(2,1)
+
+        m = len(self.y)
+        cost_history = np.zeros(iterations)
+
+        for it in range(iterations):
+            cost = 0.0
+            for i in range(m):
+                ## Compute update
+                theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
+                ## Global aggregation
+        cost_history[it]  = cost
+        print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}\nFinal cost/MSE:  {:0.3f}\n\n'.format(theta[0][0],theta[1][0],cost_history[-1]))
+        return theta, cost_history
 
 def launch_cluster(cluster):
     return cluster.go()
@@ -57,8 +80,8 @@ def main():
     # all_data = import_data_from_file(sys.argv[1])
 
     # Generate Data 
-    X = 2 * np.random.rand(100,1)
-    y = 4 +3 * X + np.random.randn(100,1)
+    X = 2 * np.random.rand(1000,1)
+    y = 4 +3 * X + np.random.randn(1000,1)
 
     max_machine_speed = 3
     max_server_latency = 5
