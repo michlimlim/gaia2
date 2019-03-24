@@ -2,7 +2,7 @@
 
 import concurrent.futures
 import numpy as np
-from sgd import compute_local_theta
+from sgd import compute_local_theta, cal_cost
 from cluster import Cluster
 from globalaggregator import GlobalAggregator
 from threading import Thread
@@ -37,8 +37,15 @@ def main():
                 clusters[k].set_latency_to(clusters[j], (k + j) % max_server_latency)
     #with concurrent.futures.ThreadPoolExecutor() as executor:
         #result = executor.map(launch_cluster, clusters)
+    threads = []
     for cluster in clusters:
-        t = Thread(target=cluster.go).start()
+        t = Thread(target=cluster.go)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+    final_theta = aggregator.get_aggregated_update()
+    print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}'.format(final_theta[0][0],final_theta[1][0]))
 
 if __name__ == "__main__":
     main()
