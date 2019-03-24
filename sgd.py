@@ -49,15 +49,13 @@ def stochastic_gradient_descent(X,y,theta,iterations=1000):
 
             ## Compute update
             theta, cost = compute_local_theta(m, X, y, theta, cost)
-            ## Global aggregation
 
         cost_history[it]  = cost
     return theta, cost_history
 
 def main():
-    X = 2 * np.random.rand(100,1)
-    y = 4 + 3 * X + np.random.randn(100,1)
-
+    X = 2 * np.random.rand(1000,1)
+    y = 4 + 3 * X + np.random.randn(1000,1)
     n_iter = 50
 
     theta = np.random.randn(2,1)

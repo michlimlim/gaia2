@@ -12,17 +12,17 @@ def main():
     # all_data = import_data_from_file(sys.argv[1])
 
     # Generate Data 
-    X = 2 * np.random.rand(100,1)
-    y = 4 +3 * X + np.random.randn(100,1)
+    X = 2 * np.random.rand(1000,1)
+    y = 4 +3 * X + np.random.randn(1000,1)
 
     # Initialize variables 
     max_machine_speed = 3
     max_server_latency = 5
-    cluster_size = 100
+    cluster_size = 10
     delta = 3
     size_of_data_partition = len(X) // cluster_size
 
-    aggregator = GlobalAggregator(cluster_size, delta, size_of_data_partition)
+    aggregator = GlobalAggregator(cluster_size)
 
     ## TODO: Figure out a way to have clusters dies and come back.
     clusters = [Cluster(k % max_machine_speed, aggregator, delta) for k in range(cluster_size)]

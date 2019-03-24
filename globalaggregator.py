@@ -5,37 +5,40 @@ from threading import Event, RLock
 
 class GlobalAggregator:
 
-    def __init__(self, cluster_size, delta, size_of_partition):
+    def __init__(self, cluster_size):
         ## Create a new Aggregator instance. 
         # In Bulk Synchronous Parallel version, it aggregates updates from all nodes, before waking all nodes from sleep 
         self.cluster_size = cluster_size
-        self.aggregation = [[] for j in range((self.cluster_size//delta + 1)*size_of_partition)]
-        self.events = [Event() for k in range((self.cluster_size//delta + 1)*size_of_partition)]
+        self.aggregation = []
+        self.event = Event()
         self.lock = RLock()
+        self.global_theta = 0
     
-    def get_event(self, k):
+    def get_event(self):
     ## Called by the Cluster, to get the Event object for that the Cluster may sleep
         self.lock.acquire()
-        ret = self.events[k]
+        ret = self.event
         self.lock.release()
         return ret
     
-    def get_aggregated_update(self, k):
+    def get_aggregated_update(self):
     ## Called by the Cluster, to get the aggregated update for that round on global aggregation
         self.lock.acquire()
-        ret = self.aggregation[k]
+        ret = self.global_theta
         self.lock.release()
         return ret
     
-    def aggregate(self, k, update):
+    def aggregate(self, update):
         self.lock.acquire(1)
-        self.aggregation[k].append(update)
-        if (len(self.aggregation[k])) == self.cluster_size:
-            self.aggregation[k] = sum(self.aggregation[k])/ self.cluster_size
-            self.wake_up_clusters(k)
+        self.aggregation.append(update)
+        if (len(self.aggregation)) == self.cluster_size:
+            self.global_theta = sum(self.aggregation)/ self.cluster_size
+            self.wake_up_clusters()
         self.lock.release()
 
-    def wake_up_clusters(self, k):
+    def wake_up_clusters(self):
         self.lock.acquire()
-        self.events[k].set()
+        self.event.set()
+        self.aggregation = []
+        self.event = Event()
         self.lock.release()

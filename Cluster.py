@@ -55,7 +55,7 @@ class Cluster:
         
         Returns the final theta vector and array of cost history over no of iterations
         '''
-        iterations = 50
+        iterations = 5
         theta = np.random.randn(2,1)
 
         m = len(self.y)
@@ -65,18 +65,17 @@ class Cluster:
         for it in range(iterations):
             cost = 0.0
             for i in range(m):
-                print("iter: ", iter)
                 ## Compute update
                 theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
                 ## Global aggregation
                 if iter > 0 and (iter % self.delta) == 0:
                     print("cluster: {:d}, global update, k = {:d}".format(self.get_id(), iter//self.delta))
-                    sleep = self.aggregator.get_event(iter//self.delta)
-                    self.aggregator.aggregate(iter//self.delta, theta)
+                    sleep = self.aggregator.get_event()
+                    self.aggregator.aggregate(theta)
                     sleep.wait()
-                    theta = self.aggregator.get_aggregated_update(iter//self.delta)
+                    theta = self.aggregator.get_aggregated_update()
                 iter += 1
         cost_history[it]  = cost
-        print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}\nFinal cost/MSE:  {:0.3f}\n\n'.format(theta[0][0],theta[1][0],cost_history[-1]))
+        print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}\nFinal cost/MSE:  {:0.3f}\n'.format(theta[0][0],theta[1][0],cost_history[-1]))
         return theta, cost_history
         
