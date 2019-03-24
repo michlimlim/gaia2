@@ -12,8 +12,8 @@ def main():
     # all_data = import_data_from_file(sys.argv[1])
 
     # Generate Data 
-    X = 2 * np.random.rand(1000,1)
-    y = 4 +3 * X + np.random.randn(1000,1)
+    X = 2 * np.random.rand(100,1)
+    y = 4 +3 * X + np.random.randn(100,1)
 
     # Initialize variables 
     max_machine_speed = 3

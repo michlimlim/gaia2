@@ -90,7 +90,7 @@ class Cluster:
             for i in range(m):
                 ## Compute update
                 print("[cluster: {:2d}] iter = {:d}".format(self.get_id(), iter))
-                theta, cost = compute_local_theta(m, self.X, self.y, theta, cost, self.machine_speed)
+                theta, cost = compute_local_theta(m, self.X, self.y, theta, cost, self.machine_speed/10.0)
                 ## Global aggregation
                 if iter > 0 and (iter % self.delta) == 0:
                     significance = self.significance_fn(theta, global_theta)
