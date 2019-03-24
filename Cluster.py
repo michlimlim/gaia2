@@ -2,6 +2,7 @@
 import numpy as np
 from sgd import compute_local_theta
 import time 
+from math import sqrt
 
 class Cluster:
     MAX_ID = 0
@@ -42,6 +43,26 @@ class Cluster:
         # :param latency [float] the latency betwween clusters in seconds
         self.latency_table[cluster.get_id()] = latency
         self.cluster_table[cluster.get_id()] = cluster
+    
+    def global_aggregate(self, theta):
+        sleep = self.aggregator.get_event()
+        # To simulate latency
+        time.sleep(3)
+        self.aggregator.aggregate(theta)
+        sleep.wait()
+        theta = self.aggregator.get_aggregated_update()
+        return theta
+    
+    def send_skip(self):
+        self.aggregator.increment_count()
+
+    def significance_fn(self, theta, global_theta):
+        significance = abs((global_theta-theta)/theta)
+        significance = significance.sum(axis=0)[0]
+        return significance
+
+    def significance_threshold(self, iter):
+        return 1/sqrt(iter)
 
     def go(self):
         # If I want to send a message to another cluster: 
@@ -62,6 +83,7 @@ class Cluster:
         m = len(self.y)
         cost_history = np.zeros(iterations)
 
+        global_theta = theta
         iter = 0
         for it in range(iterations):
             cost = 0.0
@@ -71,14 +93,17 @@ class Cluster:
                 theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
                 ## Global aggregation
                 if iter > 0 and (iter % self.delta) == 0:
-                    print("[cluster: {:2d}] global update, k = {:d}".format(self.get_id(), iter//self.delta))
+                    significance = self.significance_fn(theta, global_theta)
                     
-                    sleep = self.aggregator.get_event()
-                    # To simulate latency
-                    time.sleep(3)
-                    self.aggregator.aggregate(theta)
-                    sleep.wait()
-                    theta = self.aggregator.get_aggregated_update()
+                    if significance > self.significance_threshold(iter):
+                        print("[cluster: {:2d}] global update step  = {:d} sig= {:02f} PAST THRESHOLD!".format(self.get_id(), iter//self.delta, significance))
+                        agg = self.global_aggregate(theta)
+                        if agg.all() != None:
+                            theta = agg
+                            global_theta = theta
+                    else: 
+                        print("[cluster: {:2d}] global update step  = {:d} sig= {:02f} Skip Aggregation".format(self.get_id(), iter//self.delta, significance))
+                        self.send_skip()
                 iter += 1
         cost_history[it]  = cost
         # print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}\nFinal cost/MSE:  {:0.3f}\n'.format(theta[0][0],theta[1][0],cost_history[-1]))

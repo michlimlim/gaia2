@@ -2,6 +2,7 @@
 
 from queue import Queue 
 from threading import Event, RLock
+import numpy as np
 
 class GlobalAggregator:
 
@@ -13,6 +14,8 @@ class GlobalAggregator:
         self.event = Event()
         self.lock = RLock()
         self.global_theta = 0
+        # Keeps track of number of clusters that have reported to it
+        self.update_count = 0 
     
     def get_event(self):
     ## Called by the Cluster, to get the Event object for that the Cluster may sleep
@@ -28,12 +31,21 @@ class GlobalAggregator:
         self.lock.release()
         return ret
     
+    def increment_count(self):
+        self.lock.acquire(1)
+        self.update_count += 1
+        if self.update_count == self.cluster_size:
+            if len(self.aggregation) > 0:
+                self.global_theta = sum(self.aggregation)/len(self.aggregation)
+            else:
+                self.global_theta = np.array([None, None])
+            self.wake_up_clusters()
+        self.lock.release()
+    
     def aggregate(self, update):
         self.lock.acquire(1)
         self.aggregation.append(update)
-        if (len(self.aggregation)) == self.cluster_size:
-            self.global_theta = sum(self.aggregation)/ self.cluster_size
-            self.wake_up_clusters()
+        self.increment_count()
         self.lock.release()
 
     def wake_up_clusters(self):
@@ -41,4 +53,5 @@ class GlobalAggregator:
         self.event.set()
         self.aggregation = []
         self.event = Event()
+        self.update_count = 0 
         self.lock.release()
