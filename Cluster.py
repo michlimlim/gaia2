@@ -61,18 +61,21 @@ class Cluster:
         m = len(self.y)
         cost_history = np.zeros(iterations)
 
+        iter = 0
         for it in range(iterations):
             cost = 0.0
             for i in range(m):
+                print("iter: ", iter)
                 ## Compute update
                 theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
                 ## Global aggregation
-                #if (i % self.delta) == 0:
-                    #condition = self.aggregator.get_condition(m//self.delta)
-                    #self.aggregator.aggregate(m//self.delta, theta)
-                    #condition.wait()
-                    #theta = self.aggregator.get_aggregated_update(m//self.delta)
-                    #pass
+                if iter > 0 and (iter % self.delta) == 0:
+                    print("cluster: {:d}, global update, k = {:d}".format(self.get_id(), iter//self.delta))
+                    sleep = self.aggregator.get_event(iter//self.delta)
+                    self.aggregator.aggregate(iter//self.delta, theta)
+                    sleep.wait()
+                    theta = self.aggregator.get_aggregated_update(iter//self.delta)
+                iter += 1
         cost_history[it]  = cost
         print('Theta0:          {:0.3f},\nTheta1:          {:0.3f}\nFinal cost/MSE:  {:0.3f}\n\n'.format(theta[0][0],theta[1][0],cost_history[-1]))
         return theta, cost_history
