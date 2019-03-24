@@ -46,7 +46,7 @@ class Cluster:
     
     def global_aggregate(self, theta):
         sleep = self.aggregator.get_event()
-        # To simulate latency
+        # SIMULATES LATENCY! 
         time.sleep(3)
         self.aggregator.aggregate(theta)
         sleep.wait()
@@ -77,7 +77,7 @@ class Cluster:
         
         Returns the final theta vector and array of cost history over no of iterations
         '''
-        iterations = 50
+        iterations = 5
         theta = np.random.randn(2,1)
 
         m = len(self.y)
@@ -90,7 +90,7 @@ class Cluster:
             for i in range(m):
                 ## Compute update
                 print("[cluster: {:2d}] iter = {:d}".format(self.get_id(), iter))
-                theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
+                theta, cost = compute_local_theta(m, self.X, self.y, theta, cost, self.machine_speed)
                 ## Global aggregation
                 if iter > 0 and (iter % self.delta) == 0:
                     significance = self.significance_fn(theta, global_theta)
@@ -98,7 +98,7 @@ class Cluster:
                     if significance > self.significance_threshold(iter):
                         print("[cluster: {:2d}] global update step  = {:d} sig= {:02f} PAST THRESHOLD!".format(self.get_id(), iter//self.delta, significance))
                         agg = self.global_aggregate(theta)
-                        if agg.all() != None:
+                        if agg.any() != global_theta.any():
                             theta = agg
                             global_theta = theta
                     else: 

@@ -37,8 +37,6 @@ class GlobalAggregator:
         if self.update_count == self.cluster_size:
             if len(self.aggregation) > 0:
                 self.global_theta = sum(self.aggregation)/len(self.aggregation)
-            else:
-                self.global_theta = np.array([None, None])
             self.wake_up_clusters()
         self.lock.release()
     

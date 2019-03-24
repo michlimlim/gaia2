@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import numpy as np
+import time
 ## Based on code on basic SGD on linear regression: https://towardsdatascience.com/gradient-descent-in-python-a0d07285742f 
 
 def  cal_cost(theta,X,y):
@@ -21,7 +22,7 @@ def  cal_cost(theta,X,y):
     cost = (1/(2*m)) * np.sum(np.square(predictions-y))
     return cost
 
-def compute_local_theta(m, X, y, theta, cost):
+def compute_local_theta(m, X, y, theta, cost, machinespeed=0):
     rand_ind = np.random.randint(0,m)
     X_i = X[rand_ind,:].reshape(1, X.shape[1])
     y_i = y[rand_ind].reshape(1, 1
@@ -29,6 +30,8 @@ def compute_local_theta(m, X, y, theta, cost):
     prediction = np.dot(X_i, theta)
     theta = theta -(1/m) * 0.5 * ( X_i.T.dot((prediction - y_i)))
     cost += cal_cost(theta,X_i,y_i)
+    # SIMULATES MACHINE SPEED!!!
+    time.sleep(machinespeed) 
     return theta, cost
 
 def stochastic_gradient_descent(X,y,theta,iterations=1000):
