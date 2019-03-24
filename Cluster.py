@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import numpy as np
 from sgd import compute_local_theta
+import time 
 
 class Cluster:
     MAX_ID = 0
@@ -66,12 +67,15 @@ class Cluster:
             cost = 0.0
             for i in range(m):
                 ## Compute update
-                print("[cluster: {:d}] iter = {:d}".format(self.get_id(), iter))
+                print("[cluster: {:2d}] iter = {:d}".format(self.get_id(), iter))
                 theta, cost = compute_local_theta(m, self.X, self.y, theta, cost)
                 ## Global aggregation
                 if iter > 0 and (iter % self.delta) == 0:
-                    print("[cluster: {:d}] global update, k = {:d}".format(self.get_id(), iter//self.delta))
+                    print("[cluster: {:2d}] global update, k = {:d}".format(self.get_id(), iter//self.delta))
+                    
                     sleep = self.aggregator.get_event()
+                    # To simulate latency
+                    time.sleep(3)
                     self.aggregator.aggregate(theta)
                     sleep.wait()
                     theta = self.aggregator.get_aggregated_update()
