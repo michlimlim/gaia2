@@ -1,7 +1,8 @@
 import csv
 
+
 def import_data_from_file(fname):
-    ## Import a dataset from a CSV file.
+    # Import a dataset from a CSV file.
     # :param fname [string] the name of the file contianing the data
     # :return [array<array<int>>] the CSV data can an aarray matrix of int values
     ret = []
