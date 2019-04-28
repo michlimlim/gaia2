@@ -55,9 +55,9 @@ class Solver(object):
                     # obtain gradient for each param here.
                     # then we send the gradient!
                     local_gradients[idx] = p.grad
-
-                # Enqueue local gradients for each other host_hosts
-                for host_id in PendingWork.other_hosts:
+                
+                # Enqueue local gradients for my own queue and other hosts' queues
+                for host_id in PendingWork.other_hosts + [PendingWork.my_host]:
                     PendingWork.enqueue(local_gradients, host_id)
 
                 # In the usual case, we call the step() function on the optimizer,
