@@ -1,9 +1,13 @@
+# General python libraries
 import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 
+# Code-specific imports
+# from somewhere import enqueue
+# from somewhere import PendingWork
 from data_partition import build_dataset_loader
 from neural_net import Net
 
@@ -28,9 +32,10 @@ class Solver(object):
         if torch.cuda.is_available():
             self.net = self.net.cuda()  
 
-    def train(self):
+    def train_and_enqueue_local_gradients(self):
         self.net.train()
         for epoch_i in range(self.n_epochs):
+            local_gradients = {}
             epoch_i += 1
             epoch_loss = 0
             for images, labels in self.train_loader:
@@ -44,11 +49,23 @@ class Solver(object):
                 loss = self.loss_fn(logits, labels)
                 self.optimizer.zero_grad()
                 loss.backward()
-                for p in self.net.parameters():
+                # Since everybody has the same net structure, the only thing
+                # we need to identify which gradients belongs to which parameter
+                # is the sequence number.
+                for idx, p in enumerate(self.net.parameters()):
                     # obtain gradient for each param here.
                     # then we send the gradient!
-                    print(p.grad)
-                self.optimizer.step()
+                    local_gradients[idx] = p.grad
+
+                # Enqueue local gradients for each device id which is not myself
+                for device_id in range(PendingWork.num_devices):
+                    PendingWork.enqueue(local_gradients, device_id)
+                # In the usual case, we call the step() function on the optimizer,
+                # which will adjust the weights for
+                # each part of the net from the gradient.
+                # But this is commented out now because the aggregator function
+                # will perform the aggregation!
+                # self.optimizer.step()
                 epoch_loss += float(loss.data)
 
             epoch_loss /= len(self.train_loader.dataset)
@@ -73,6 +90,6 @@ if __name__=="__main__":
     with open('config.json') as f:
         local_state = LocalState(json.loads(f.read()))
 
-    node = initialize_current_node(local_state.device_id, 4, 'MNIST', './data')
+    node = initialize_current_node(local_state.device_id, PendingWork.num_devices, 'MNIST', './data')
     node.train()
     node.evaluate()
