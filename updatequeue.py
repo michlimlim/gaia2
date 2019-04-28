@@ -1,4 +1,4 @@
-class Queue(object):
+class UpdateQueue(object):
   # :warning Not thread safe.
     def __init__(self):
         self.queue = []
@@ -13,7 +13,7 @@ class Queue(object):
         self.len -= 1
 
 def main(): 
-    sample_queue = Queue()
+    sample_queue = UpdateQueue()
 
     # Testing if enqueue adds items to list and increments length
     sample_queue.enqueue("giraffe")

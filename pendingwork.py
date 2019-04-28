@@ -1,6 +1,6 @@
 
 from threading import RLock
-from queue import Queue
+from updatequeue import UpdateQueue
 import random
 
 class PendingWork(object):
@@ -24,9 +24,9 @@ class PendingWork(object):
         self.my_host = my_host
         self.other_hosts = other_hosts
         self.lock.acquire(blocking=1)
-        self.queues[my_host] = Queue()
+        self.queues[my_host] = UpdateQueue()
         for host in other_hosts:
-            self.queues[host] = Queue()
+            self.queues[host] = UpdateQueue()
         self.release()
 
     def enqueue(self, update, host):
@@ -36,7 +36,7 @@ class PendingWork(object):
         if not host in self.queues:
             self.release()
             self.write()
-            self.queues[host] = Queue()
+            self.queues[host] = UpdateQueue()
         self.release()
         # Adds update to the host's queue
         host_queue = self.queues[host]
@@ -48,7 +48,10 @@ class PendingWork(object):
     def dequeue(self):
         """Pops update from one of the queues at random
            The algorithm picks out a random element, and dequeues the queue it is found in.
-           Effectively, it picks a queue proportional to its size. """
+           Effectively, it picks a queue proportional to its size. 
+
+           TODO(George): Change the algorithm to ensure that fastest node is only k times faster than slowest node
+        """
         ret = None
         self.write()
         r = random.randint(0, self.total_no_of_updates)
@@ -75,7 +78,7 @@ class PendingWork(object):
     def release(self):
         self.lock.release()
     
-    def print_queues(self):
+    def ret_queues(self):
         """Print out elements in all queues. For debugging purposes."""
         re = []
         for queue in self.queues:
@@ -87,25 +90,25 @@ def main():
 
     # Testing if setup successfully creates queues
     pending_work_queues.setup("localhost:5000", ["localhost:5001","localhost:5002"])
-    print("queues created", pending_work_queues.print_queues())
+    print("queues created", pending_work_queues.ret_queues())
 
     # Testing if enqueue adds items to correct queues
     pending_work_queues.enqueue("5001 update", "localhost:5001")
     pending_work_queues.enqueue("5001 update 2", "localhost:5001")
     pending_work_queues.enqueue("5000 update", "localhost:5000")
-    print("queues after 3 things are added", pending_work_queues.print_queues())
+    print("queues after 3 things are added", pending_work_queues.ret_queues())
     
     # Testing if dequeue works
     pending_work_queues.dequeue()
-    print("queues after 1 item removed", pending_work_queues.print_queues())
+    print("queues after 1 item removed", pending_work_queues.ret_queues())
     pending_work_queues.dequeue()
     pending_work_queues.dequeue()
-    print("queues after another 2 items removed", pending_work_queues.print_queues())
+    print("queues after another 2 items removed", pending_work_queues.ret_queues())
 
 
     # Testing if dequeue works when queue empty
     item = pending_work_queues.dequeue()
-    print("queue after dequeue on empty", pending_work_queues.print_queues())
+    print("queue after dequeue on empty", pending_work_queues.ret_queues())
 
 if __name__ == "__main__":
     main()
