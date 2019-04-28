@@ -6,8 +6,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 # Code-specific imports
-# from somewhere import enqueue
-# from somewhere import PendingWork
+from pendingwork import PendingWork
 from data_partition import build_dataset_loader
 from neural_net import Net
 
@@ -57,9 +56,10 @@ class Solver(object):
                     # then we send the gradient!
                     local_gradients[idx] = p.grad
 
-                # Enqueue local gradients for each device id which is not myself
-                for device_id in range(PendingWork.num_devices):
-                    PendingWork.enqueue(local_gradients, device_id)
+                # Enqueue local gradients for each other host_hosts
+                for host_id in PendingWork.other_hosts:
+                    PendingWork.enqueue(local_gradients, host_id)
+
                 # In the usual case, we call the step() function on the optimizer,
                 # which will adjust the weights for
                 # each part of the net from the gradient.
