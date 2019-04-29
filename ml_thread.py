@@ -10,23 +10,20 @@ from pendingwork import PendingWork
 from data_partition import build_dataset_loader
 from neural_net import Net
 
-class LocalState(object):
-    def __init__(self, config_dict):
-        self.device_id = config_dict['device_id']
-
 # Create a function that creates nodes that hold partitioned training data
-def initialize_current_node(curr_node, no_of_nodes = 2, dataset='MNIST', dataset_dir='./data'):
-    train_loader, test_loader = build_dataset_loader(curr_node, no_of_nodes, dataset, dataset_dir, 100)
-    return Solver(train_loader, test_loader, dataset, 2, 0.005)
+def initialize_current_node(curr_node, pending_work_queues, dataset='MNIST', dataset_dir='./data'):
+    train_loader, test_loader = build_dataset_loader(curr_node, pending_work_queues.num_devices, dataset, dataset_dir, 100)
+    return Solver(train_loader, test_loader, pending_work_queues, dataset, 10, 0.005)
 
 class Solver(object):
-    def __init__(self, train_loader, test_loader, dataset='MNIST', n_epochs=25, lr=0.005):
+    def __init__(self, train_loader, test_loader, pending_work_queues, dataset='MNIST', n_epochs=25, lr=0.005):
         self.n_epochs = n_epochs
         self.train_loader = train_loader
         self.test_loader = test_loader
         self.image_dim = {'MNIST': 28*28, 'CIFAR10': 3*32*32}[dataset]
         self.net = Net(image_dim=self.image_dim)
         self.loss_fn = nn.CrossEntropyLoss()
+        self.pending_work_queues = pending_work_queues
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         if torch.cuda.is_available():
             self.net = self.net.cuda()  
@@ -57,8 +54,8 @@ class Solver(object):
                     local_gradients[idx] = p.grad
                 
                 # Enqueue local gradients for my own queue and other hosts' queues
-                for host_id in PendingWork.other_hosts + [PendingWork.my_host]:
-                    PendingWork.enqueue(local_gradients, host_id)
+                for host_id in self.pending_work_queues.other_hosts + [self.pending_work_queues.my_host]:
+                    self.pending_work_queues.enqueue(local_gradients, host_id)
 
                 # In the usual case, we call the step() function on the optimizer,
                 # which will adjust the weights for
@@ -87,9 +84,9 @@ class Solver(object):
 
 
 if __name__=="__main__":
-    with open('config.json') as f:
-        local_state = LocalState(json.loads(f.read()))
-
-    node = initialize_current_node(local_state.device_id, PendingWork.num_devices, 'MNIST', './data')
-    node.train()
+    pending_work_queues = PendingWork()
+    pending_work_queues.setup("localhost:5000", ["localhost:5001","localhost:5002"])
+    # TODO (Weitai): to change the device id to be the raw addresses of the flask apps
+    node = initialize_current_node(0, pending_work_queues, 'MNIST', './data')
+    node.train_and_enqueue_local_gradients()
     node.evaluate()

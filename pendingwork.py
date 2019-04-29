@@ -17,12 +17,14 @@ class PendingWork(object):
         self.lock = RLock()
         self.my_host = ''
         self.other_hosts = []
+        self.num_devices = 0
         self.total_no_of_updates = 0
 
     def setup(self, my_host, other_hosts):
         """Sets up a queue for each host"""
         self.my_host = my_host
         self.other_hosts = other_hosts
+        self.num_devices = 1 + len(other_hosts)
         self.lock.acquire(blocking=1)
         self.queues[my_host] = UpdateQueue()
         for host in other_hosts:
