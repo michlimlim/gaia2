@@ -1,19 +1,26 @@
 #!/usr/bin/python3
-# TODO(gs): Document this class.
 import util
 
 
 class UpdateQueue(object):
-    # :warning Not thread safe.
+    # UpdateQueue encapsulates a queue of model updates.
+    # This class is not thread safe.
+
     def __init__(self):
+        # :brief Create a new UpdateQueue instance.
         self.queue = []
         self.len = 0
 
     def enqueue(self, data):
+        # :brief Enqueue some data.
+        # :param data [Object] some object to add to the queue
         self.queue.append(data)
         self.len += 1
 
     def dequeue(self):
+        # :brief Dequeue an element of the queue.
+        # :return [Object] some the oldest element of the queue.
+        # :warning Raises an EmptyQueueError of the queue is empty.
         if self.len < 1:
             raise util.EmptyQueueError("could not pop from empty queue")
         ret = self.queue[-1]
@@ -22,6 +29,8 @@ class UpdateQueue(object):
         return ret
 
     def __len__(self):
+        # :brief Get the length of the queue.
+        # :return [int] the length of the queue
         return self.len
 
 

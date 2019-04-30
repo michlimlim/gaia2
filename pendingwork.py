@@ -15,7 +15,7 @@ class PendingWork(object):
     # PendingWork holds all the queues of model
     # updates to be processed. This is implemented
     # for one tenant only, and it does not include
-    # a global model queue.
+    # a global model queue. This class is thread safe.
     # TODO(ml): Add a global model queue.
 
     def __init__(self):
@@ -76,8 +76,11 @@ class PendingWork(object):
         # :warning Raises an EmptyQueueError when no element could be returned.
         # TODO(wt): Ditto for this method.
         self.write()
+        if self.total_no_of_updates == 0:
+            self.release()
+            raise util.EmptyQueueError("")
         ret = None
-        r = random.randint(0, self.total_no_of_updates)
+        r = random.randint(0, max(self.total_no_of_updates - 1, 0))
         for key in self.queues:
             queue = self.queues[key]
             if queue.len > r:
@@ -86,7 +89,9 @@ class PendingWork(object):
             else:
                 r -= queue.len
         if ret == None:
-            raise util.EmptyQueueError("could not pop from any queue")
+            # This should not happen
+            self.release()
+            raise util.ExtraFatal("could not pop from any queue")
         self.total_no_of_updates -= 1
         self._update_min_and_max()
         self.release()
@@ -151,6 +156,7 @@ def main():
     pending_work_queues.dequeue()
     print("queues after 1 item removed", pending_work_queues.ret_queues())
     pending_work_queues.dequeue()
+    print("\n\n", pending_work_queues.ret_queues(), "\n\n")
     pending_work_queues.dequeue()
     print("queues after another 2 items removed",
           pending_work_queues.ret_queues())
