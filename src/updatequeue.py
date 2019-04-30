@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import util
+from src.util import EmptyQueueError
 
 
 class UpdateQueue(object):
@@ -22,7 +22,7 @@ class UpdateQueue(object):
         # :return [Object] some the oldest element of the queue.
         # :warning Raises an EmptyQueueError of the queue is empty.
         if self.len < 1:
-            raise util.EmptyQueueError("could not pop from empty queue")
+            raise EmptyQueueError("could not pop from empty queue")
         ret = self.queue[-1]
         self.queue = self.queue[1:]
         self.len -= 1
@@ -32,29 +32,3 @@ class UpdateQueue(object):
         # :brief Get the length of the queue.
         # :return [int] the length of the queue
         return self.len
-
-
-def main():
-    sample_queue = UpdateQueue()
-
-    # Testing if enqueue adds items to list and increments length
-    sample_queue.enqueue("giraffe")
-    sample_queue.enqueue("elephant")
-    print("queue", sample_queue.queue)
-    print("length", sample_queue.len)
-
-    # Testing if dequeue removes items to list and decrements length
-    sample_queue.dequeue()
-    print("queue", sample_queue.queue)
-    print("length", sample_queue.len)
-
-    # Testing if dequeue works when queue empty
-    sample_queue.dequeue()
-    sample_queue.dequeue()
-    sample_queue.dequeue()
-    print("queue", sample_queue.queue)
-    print("length", sample_queue.len)
-
-
-if __name__ == "__main__":
-    main()

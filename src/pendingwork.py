@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 from threading import RLock
-from updatequeue import UpdateQueue
+from src.updatequeue import UpdateQueue
 import random
-import util
+from src.util import DevicePushbackError
+from src.util import EmptyQueueError
+from src.util import ExtraFatal
 
 # TODO(gs): Implement a better test suite.
 
@@ -62,7 +64,7 @@ class PendingWork(object):
         if self.min_queue_len != None:
             if len(queue) > self.k * self.min_queue_len:
                 self.release()
-                raise util.DevicePushbackError("could not enqueue new update")
+                raise DevicePushbackError("could not enqueue new update")
         queue.enqueue(update)
         self.total_no_of_updates += 1
         self._update_min_and_max()
@@ -78,7 +80,7 @@ class PendingWork(object):
         self.write()
         if self.total_no_of_updates == 0:
             self.release()
-            raise util.EmptyQueueError("")
+            raise EmptyQueueError("")
         ret = None
         r = random.randint(0, max(self.total_no_of_updates - 1, 0))
         for key in self.queues:
@@ -91,7 +93,7 @@ class PendingWork(object):
         if ret == None:
             # This should not happen
             self.release()
-            raise util.ExtraFatal("could not pop from any queue")
+            raise ExtraFatal("could not pop from any queue")
         self.total_no_of_updates -= 1
         self._update_min_and_max()
         self.release()
@@ -129,45 +131,17 @@ class PendingWork(object):
         # :brief Release any locks.
         self.lock.release()
 
-    def ret_queues(self):
-        """Print out elements in all queues, for debugging purposes.
-           TODO(gs): Consider replacing with a __str__ method."""
-        re = []
-        for queue in self.queues:
-            re.append(queue + ":" + str(self.queues[queue].queue))
+    def __str__(self):
+        # :brief Print out elements in all queues, for debugging purposes.
+        # :return [str] the PendingWork queues as a string
+        self.read()
+        re = "\nPendingWork:\n"
+        for qid in self.queues:
+            re = re + qid + ":" + str(self.queues[qid].queue) + "\n"
+        self.release()
         return re
-
-
-def main():
-    pending_work_queues = PendingWork()
-
-    # Testing if setup successfully creates queues
-    pending_work_queues.setup(
-        "localhost:5000", ["localhost:5001", "localhost:5002"])
-    print("queues created", pending_work_queues.ret_queues())
-
-    # Testing if enqueue adds items to correct queues
-    pending_work_queues.enqueue("5001 update", "localhost:5001")
-    pending_work_queues.enqueue("5001 update 2", "localhost:5001")
-    pending_work_queues.enqueue("5000 update", "localhost:5000")
-    print("queues after 3 things are added", pending_work_queues.ret_queues())
-
-    # Testing if dequeue works
-    pending_work_queues.dequeue()
-    print("queues after 1 item removed", pending_work_queues.ret_queues())
-    pending_work_queues.dequeue()
-    print("\n\n", pending_work_queues.ret_queues(), "\n\n")
-    pending_work_queues.dequeue()
-    print("queues after another 2 items removed",
-          pending_work_queues.ret_queues())
-
-    # Testing if dequeue works when queue empty
-    try:
-        item = pending_work_queues.dequeue()
-        print("ERROR: should have raised exception")
-    except util.EmptyQueueError:
-        print("correctly raised exception")
-
-
-if __name__ == "__main__":
-    main()
+    
+    def get_total_no_of_updates(self):
+        # :brief Get self's total_no_of_updates
+        # :return [int] the value of total_no_of_updates
+        return self.total_no_of_updates

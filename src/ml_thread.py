@@ -6,9 +6,9 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 # Code-specific imports
-from pendingwork import PendingWork
-from data_partition import build_dataset_loader
-from neural_net import Net
+from src.pendingwork import PendingWork
+from src.data_partition import build_dataset_loader
+from src.neural_net import Net
 
 # Create a function that creates nodes that hold partitioned training data
 def initialize_current_node(curr_node, pending_work_queues, dataset='MNIST', dataset_dir='./data'):
@@ -82,11 +82,3 @@ class Solver(object):
             correct += (predicted.cpu() == labels).sum()
         print(f'Accuracy: {100 * correct / total:.2f}%')
 
-
-if __name__=="__main__":
-    pending_work_queues = PendingWork()
-    pending_work_queues.setup("localhost:5000", ["localhost:5001","localhost:5002"])
-    # TODO (Weitai): to change the device id to be the raw addresses of the flask apps
-    node = initialize_current_node(0, pending_work_queues, 'MNIST', './data')
-    node.train_and_enqueue_local_gradients()
-    node.evaluate()
