@@ -4,27 +4,22 @@ from updatequeue import UpdateQueue
 import random
 import util
 
-"""TODO(gs): This should be set in the initializer
-   instead of a global constant.
-   
-   TODO(gs): Finish the documentation for this source.
-   
-   TODO(gs): Implement a better test suite.
-   
-   TODO(gs): Make the style consistant for this file."""
+# TODO(gs): Implement a better test suite.
+
+# TODO(gs): This should be set in the initializer
+# instead of a global constant.
 MAX_QUEUE_LEN_RATIO = 10
 
 
 class PendingWork(object):
-
-    """
-    PendingWork class. 
-
-    It holds all the queues of models updates to be processed. 
-    For one tenant only. For now, it does not include global model queue.
-    """
+    # PendingWork holds all the queues of model
+    # updates to be processed. This is implemented
+    # for one tenant only, and it does not include
+    # a global model queue.
+    # TODO(ml): Add a global model queue.
 
     def __init__(self):
+        # :brief Create a new PendingWork instance.
         self.queues = {}
         self.lock = RLock()
         self.my_host = ''
@@ -35,7 +30,9 @@ class PendingWork(object):
         self.k = MAX_QUEUE_LEN_RATIO
 
     def setup(self, my_host, other_hosts):
-        """Sets up a queue for each host"""
+        # :brief Set up a queue for each host.
+        # :param my_host [str] an id for this server
+        # :param other_hosts [array<str>] the id of the other hosts
         self.my_host = my_host
         self.other_hosts = other_hosts
         self.num_devices = 1 + len(other_hosts)
@@ -46,7 +43,11 @@ class PendingWork(object):
         self.release()
 
     def enqueue(self, update, host):
-        """Adds update to corresponding queue of host"""
+        # :brief Add an update to corresponding queue of a given host.
+        # :param update [Object] a model update that needs to be processed
+        # :param host [str] the id for the host that generated the update
+        # TODO(wt): Decide on a representation for model updates and
+        # replace the 'Object' typing above.
         self.write()
         if not host in self.queues:
             # Creates queue if none exists
@@ -68,11 +69,12 @@ class PendingWork(object):
         self.release()
 
     def dequeue(self):
-        """Pops update from one of the queues at random
-           The algorithm picks out a random element, and dequeues the queue it is found in.
-           Effectively, it picks a queue proportional to its size.
-           Warning: Raises an EmptyQueueError when no element could be returned.
-        """
+        # :brief Pop an update from one of the queues at random.
+        # The algorithm picks out an element, by dequeueing from a random queue.
+        # The queue is chosen with probability proportional to its length.
+        # :return [Object] a dequeued update
+        # :warning Raises an EmptyQueueError when no element could be returned.
+        # TODO(wt): Ditto for this method.
         self.write()
         ret = None
         r = random.randint(0, self.total_no_of_updates)
@@ -83,7 +85,6 @@ class PendingWork(object):
                 break
             else:
                 r -= queue.len
-        print("RET", ret)
         if ret == None:
             raise util.EmptyQueueError("could not pop from any queue")
         self.total_no_of_updates -= 1
@@ -92,16 +93,15 @@ class PendingWork(object):
         return ret
 
     def _update_min_and_max(self):
-        """Recalculate min and max queue lengths.
-           Requires that self already be locked.
-           Should not be called from outside this class (a private method).
-           TODO(gs): There is a faster way to do this since this method scales with O(n)
-           where n is the number of queues. It would essentially be to keep a histogram of counts
-           in a vector. The worst case would be the same, but average performance *should* improve.
-           However, I think that may be harder to maintain so I will leave this here until
-           scale becomes a problem."""
+        # :brief Recalculate min and max queue lengths.
+        # Requires that self already be locked.
+        # Should not be called from outside this class (a private method).
+        # TODO(gs): There is a faster way to do this since this method scales with O(n)
+        # where n is the number of queues. It would essentially be to keep a histogram of counts
+        # in a vector. The worst case would be the same, but average performance *should* improve.
+        # However, I think that may be harder to maintain so I will leave this here until
+        # scale becomes a problem.
         lo = None
-        hi = None
         for queue in self.queues:
             if lo == None:
                 lo = len(queue)
@@ -109,16 +109,19 @@ class PendingWork(object):
                 lo = len(queue)
         self.min_queue_len = lo
 
-    """Call `read` before reading, and `release` after reading.
-       Call `write` before writing, and `release` after writing."""
+    # Call `read` before reading, and `release` after reading.
+    # Call `write` before writing, and `release` after writing.
 
     def read(self):
+        # :brief Read lock self.
         self.lock.acquire(blocking=0)
 
     def write(self):
+        # :brief Write lock self.
         self.lock.acquire(blocking=1)
 
     def release(self):
+        # :brief Release any locks.
         self.lock.release()
 
     def ret_queues(self):
