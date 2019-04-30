@@ -6,13 +6,6 @@ from src.util import DevicePushbackError
 from src.util import EmptyQueueError
 from src.util import ExtraFatal
 
-# TODO(gs): Implement a better test suite.
-
-# TODO(gs): This should be set in the initializer
-# instead of a global constant.
-MAX_QUEUE_LEN_RATIO = 10
-
-
 class PendingWork(object):
     # PendingWork holds all the queues of model
     # updates to be processed. This is implemented
@@ -20,7 +13,7 @@ class PendingWork(object):
     # a global model queue. This class is thread safe.
     # TODO(ml): Add a global model queue.
 
-    def __init__(self):
+    def __init__(self, max_qlen_ratio):
         # :brief Create a new PendingWork instance.
         self.queues = {}
         self.lock = RLock()
@@ -29,7 +22,7 @@ class PendingWork(object):
         self.num_devices = 0
         self.total_no_of_updates = 0
         self.min_queue_len = None
-        self.k = MAX_QUEUE_LEN_RATIO
+        self.k = max_qlen_ratio
 
     def setup(self, my_host, other_hosts):
         # :brief Set up a queue for each host.

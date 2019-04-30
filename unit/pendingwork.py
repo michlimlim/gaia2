@@ -4,7 +4,7 @@ from src.util import EmptyQueueError
 
 def test_pending_work(calc):
     calc.context("test_pending_work")
-    pending_work_queues = PendingWork()
+    pending_work_queues = PendingWork(100)
 
     # Testing if setup successfully creates queues
     pending_work_queues.setup(
