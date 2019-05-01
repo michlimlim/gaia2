@@ -28,8 +28,10 @@ def receive_update():
   return "Send update is running"
 
 # TODO (GS): Move this function to the sender queue
-def send_update_to_host(update, host):
-  res = requests.post(host+"/send_update", json={"sender": host, "update": update})
+def send_update_to_host(update, receiver):
+  # send_update_to_host is what a host with an update
+  # to send can call to send the update to another host ("receiver")
+  res = requests.post(receiver+"/send_update", json={"sender": receiver, "update": update})
 
 
 if __name__ == "__main__":
