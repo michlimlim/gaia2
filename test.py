@@ -4,6 +4,7 @@ import unit.test_unit as test_unit
 #import unit.ml_thread as ml_thread
 import unit.pendingwork as pendingwork
 import unit.updatequeue as updatequeue
+import unit.sender as sender
 
 def main():
     calc = TestCalculator()
@@ -11,6 +12,7 @@ def main():
     #ml_thread.add_tests(calc)
     pendingwork.add_tests(calc)
     updatequeue.add_tests(calc)
+    sender.add_tests(calc)
     calc.run()
 
 if __name__ == "__main__":

@@ -19,13 +19,23 @@ class UpdateQueue(object):
 
     def dequeue(self):
         # :brief Dequeue an element of the queue.
-        # :return [Object] some the oldest element of the queue.
-        # :warning Raises an EmptyQueueError of the queue is empty.
+        # :return [Object] the oldest element of the queue.
+        # :warning raises an EmptyQueueError if the queue is empty
         if self.len < 1:
             raise EmptyQueueError("could not pop from empty queue")
-        ret = self.queue[-1]
+        ret = self.queue[-1:]
         self.queue = self.queue[1:]
         self.len -= 1
+        return ret
+
+    def peek(self):
+        # :brief Get the next element in the queue without dequeing it.
+        # :return [Object] the oldest element of the queue 
+        # :warning raises an EmptyQueueError if the queue is empty
+        if self.len < 1:
+            raise EmptyQueueError("could not peek on empty queue")
+        ret = self.queue[-1:]
+        self.queue = self.queue[1:]
         return ret
 
     def __len__(self):
