@@ -1,11 +1,11 @@
 from flask import Flask   
 from src.pendingwork import PendingWork                                                      
 import threading
+import sys
 
 app = Flask(__name__)
 
 pending_work_queues = PendingWork(100)
-pending_work_queues.setup("localhost:5000", ["localhost:5001","localhost:5002"])
 
 def main():
   # Some kind of loop that will call Aggregator periodicially
@@ -15,9 +15,21 @@ def main():
 @app.route("/")
 def hello():
   # Example of flask app thread accessing PendingWork
-  print("queues created", pending_work_queues.ret_queues())
   return ''
 
 if __name__ == "__main__":
-    main()
-    threading.Thread(target=app.run).start()
+  # Intialize my_host and other_hosts from command line
+  other_hosts = []
+  if len(sys.argv) < 4 or sys.argv[1] != "-me" or sys.argv[3] != "-them": 
+    print("Usage: main.py -me <my host address> -them <other_host_1> <other_host_2> ...")
+    exit(1)
+  my_host = sys.argv[2]
+  for i in range(4, len(sys.argv)):
+    other_hosts.append(sys.argv[i])
+  
+  # Set up global queues with the hosts
+  pending_work_queues.setup(my_host, other_hosts)
+
+  main()
+  port = my_host.split(":")[1]
+  threading.Thread(target=app.run, kwargs=dict(host="localhost", port=port)).start()
