@@ -12,8 +12,6 @@ def main():
   # Some kind of loop that will call Aggregator periodicially
   return "App is running"
 
-  
-
 @app.route("/")
 def hello():
   return "App is running"
@@ -26,11 +24,6 @@ def receive_update():
   pending_work_queues.enqueue(update, sender)
   # print(pending_work_queues)
   return "Send update is running"
-
-# TODO (GS): Move this function to the sender queue
-def send_update_to_host(update, host):
-  res = requests.post(host+"/send_update", json={"sender": host, "update": update})
-
 
 if __name__ == "__main__":
   # Intialize my_host and other_hosts from command line
