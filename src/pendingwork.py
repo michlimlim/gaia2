@@ -32,7 +32,7 @@ class PendingWork(object):
         self.my_host = my_host
         self.other_hosts = other_hosts
         self.num_devices = 1 + len(other_hosts)
-        self.lock.acquire(blocking=1)
+        self.write()
         self.queues[my_host] = UpdateQueue()
         for host in other_hosts:
             self.queues[host] = UpdateQueue()
