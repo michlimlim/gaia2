@@ -35,7 +35,7 @@ class DataPartitioner(object):
         return Partition(self.data, self.partitions[partition])
 
 """ Partitioning MNIST adapted from https://seba-1511.github.io/tutorials/intermediate/dist_tuto.html"""
-def partition_dataset(dataset, curr_node, no_of_nodes=2):
+def partition_dataset(dataset, curr_node: int, no_of_nodes: int):
     bsz = 128 / float(no_of_nodes) # Btw we divide the batch size by the number of nodes in order to maintain the overall batch size of 128. Fairer comparison.
     partition_sizes = [1.0 / no_of_nodes for _ in range(no_of_nodes)]
     partition = DataPartitioner(dataset, partition_sizes)
@@ -44,7 +44,7 @@ def partition_dataset(dataset, curr_node, no_of_nodes=2):
         batch_size=int(bsz),
         shuffle=True)
 
-def build_dataset_loader(curr_node, no_of_nodes = 2, dataset='MNIST', dataset_dir='./data', batch_size=100):
+def build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset='MNIST', dataset_dir='./data', batch_size=100):
     dataset_ = {
         'MNIST': datasets.MNIST,
         'CIFAR10': datasets.CIFAR10
@@ -56,9 +56,15 @@ def build_dataset_loader(curr_node, no_of_nodes = 2, dataset='MNIST', dataset_di
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
     }[dataset]
-    
+
     train_dataset = dataset_(root=dataset_dir, train=True, transform=transform, download=True)
-    train_loader = partition_dataset(train_dataset, curr_node, no_of_nodes)
+
+    sorted_node_ip_addrs = list(enumerate(sorted([curr_node_ip_addr] + other_nodes_ip_addrs)))
+    for idx, node_addr in sorted_node_ip_addrs:
+        if node_addr == curr_node_ip_addr:
+            train_loader = partition_dataset(train_dataset, idx, len(sorted_node_ip_addrs))
+            break
+
     test_dataset = dataset_(root=dataset_dir, train=False, transform=transform, download=True)
     test_loader = data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, test_loader

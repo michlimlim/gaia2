@@ -5,6 +5,7 @@ import random
 from src.util import DevicePushbackError
 from src.util import EmptyQueueError
 from src.util import ExtraFatal
+from src.model_update import ModelUpdate
 
 class PendingWork(object):
     # PendingWork holds all the queues of model
@@ -37,12 +38,10 @@ class PendingWork(object):
             self.queues[host] = UpdateQueue()
         self.release()
 
-    def enqueue(self, update, host):
+    def enqueue(self, update: ModelUpdate, host):
         # :brief Add an update to corresponding queue of a given host.
-        # :param update [Object] a model update that needs to be processed
+        # :param update [ModelUpdate] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
-        # TODO(wt): Decide on a representation for model updates and
-        # replace the 'Object' typing above.
         self.write()
         if not host in self.queues:
             # Creates queue if none exists
@@ -63,13 +62,12 @@ class PendingWork(object):
         self._update_min_and_max()
         self.release()
 
-    def dequeue(self):
+    def dequeue(self) -> ModelUpdate:
         # :brief Pop an update from one of the queues at random.
         # The algorithm picks out an element, by dequeueing from a random queue.
         # The queue is chosen with probability proportional to its length.
-        # :return [Object] a dequeued update
+        # :return [ModelUpdate] a dequeued ModelUpdate object
         # :warning Raises an EmptyQueueError when no element could be returned.
-        # TODO(wt): Ditto for this method.
         self.write()
         if self.total_no_of_updates == 0:
             self.release()
