@@ -2,6 +2,7 @@ from flask import Flask, request
 from src.pendingwork import PendingWork                                                      
 import threading
 import sys
+import requests
 
 app = Flask(__name__)
 
@@ -9,22 +10,27 @@ pending_work_queues = PendingWork(100)
 
 def main():
   # Some kind of loop that will call Aggregator periodicially
-  print("app is running")
+  return "App is running"
+
   
 
 @app.route("/")
 def hello():
-  # Example of flask app thread accessing PendingWork
-  return ''
+  return "App is running"
 
 @app.route("/send_update", methods=['GET', 'POST'])
-def send_update():
+def receive_update():
   content = request.json
   sender = content['sender']
   update = content['update']
   pending_work_queues.enqueue(update, sender)
   # print(pending_work_queues)
   return "Send update is running"
+
+# TODO (GS): Move this function to the sender queue
+def send_update_to_host(update, host):
+  res = requests.post(host+"/send_update", json={"sender": host, "update": update})
+
 
 if __name__ == "__main__":
   # Intialize my_host and other_hosts from command line
