@@ -1,4 +1,4 @@
-from flask import Flask   
+from flask import Flask, request
 from src.pendingwork import PendingWork                                                      
 import threading
 import sys
@@ -16,6 +16,15 @@ def main():
 def hello():
   # Example of flask app thread accessing PendingWork
   return ''
+
+@app.route("/send_update", methods=['GET', 'POST'])
+def send_update():
+  content = request.json
+  sender = content['sender']
+  update = content['update']
+  pending_work_queues.enqueue(update, sender)
+  # print(pending_work_queues)
+  return "Send update is running"
 
 if __name__ == "__main__":
   # Intialize my_host and other_hosts from command line
