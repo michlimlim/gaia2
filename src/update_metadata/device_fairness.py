@@ -1,6 +1,6 @@
 from src.util import ExtraFatal
 
-class DeviceFairnessGradientMetadata(object):
+class DeviceFairnessUpdateMetadata(object):
     # :brief Store metadata for an update to guarantee device-based fairness
     # :param num_devices [int] total no. of devices 
     # :param device_ip_addr_to_epoch_dict [dict<str, int>] maps device id to
@@ -29,7 +29,7 @@ class DeviceFairnessReceiverState(object):
             self.min_epoch_num
         ) = min(device_ip_addr_to_epoch_dict.items(), key=lambda tup: tup[1])
 
-    # :brief Checks if we can calculate gradients
+    # :brief Checks if we can backprop
     def check_device_fairness(self) -> bool:
         return (self.max_epoch_num - self.min_epoch_num) < self.k
 
@@ -53,3 +53,5 @@ class DeviceFairnessReceiverState(object):
                     self.device_ip_addr_to_epoch_dict[device_ip_addr]
                 ))
         self.device_ip_addr_to_epoch_dict[device_ip_addr] = epoch_num
+    
+

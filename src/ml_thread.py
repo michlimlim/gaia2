@@ -7,10 +7,11 @@ from torch.autograd import Variable
 
 # Code-specific imports
 from src.model_update import ModelUpdate
-from src.update_metadata.device_fairness import DeviceFairnessGradientMetadata, DeviceFairnessReceiverState
+from src.update_metadata.device_fairness import DeviceFairnessUpdateMetadata, DeviceFairnessReceiverState
 from src.pendingwork import PendingWork
 from src.data_partition import build_dataset_loader
 from src.neural_net import Net
+from src.util import EmptyQueueError
 
 # Create a function that creates nodes that hold partitioned training data
 def initialize_current_node(pending_work_queues, dataset='MNIST', dataset_dir='./data'):
@@ -83,7 +84,7 @@ class Solver(object):
         # Restore current neural net's weights to weights before epoch
         for idx, params in self.parameter_pointers.items():
             weights_after_epoch = params.clone()
-            print(params - weights_after_epoch[idx]) # This is the gradient
+            # print(params - weights_after_epoch[idx]) # This is the gradient
             self.parameter_pointers[idx] = weights_before_epoch[idx]
 
         """
@@ -97,19 +98,25 @@ class Solver(object):
     def aggregate_received_weights(self):
         # TODO: (ml/wt) To simplify calculation, we should just enqueue our own weights into the 
         # aggregation queues. right now i don't think this is implemented
-        aggregate_weights = {} 
+        num_devices_used_during_agg = 0
+        aggregate_weights = {}
         for host_id in self.pending_work_queues.other_hosts:
-            update = self.pending_work_queues.dequeue()
-            print(update)
-            # TODO(ml) : if you have time
-            # 1) iterate over weights, and add them up in aggregate_weights
-            # 2) use self.fairness_state.update_device_fairness(host_id, new_epoch),
-            # where new_epoch is from the metadata in the update for that host_id
-            # Check if new_epoch is > curr_epoch for that host_id before calling the function
-            # because func ensures monotonicity
-        # 3) Divide agg weights by num_devices
-        # 4) update weights by overwriting self.parameter_pointers
-        pass
+            # This should be a ModelUpdate object
+            try:
+                model_update = self.pending_work_queues.dequeue(host_id)
+                update_metadata = model_update.update_metadata
+                for idx, params in model_update.updates:
+                    aggregate_weights[idx] += params
+                num_devices_used_during_agg += 1
+                self.fairness_state.update_device_fairness(
+                    host_id,
+                    update_metadata.device_ip_addr_to_epoch_dict[host_id])
+            except EmptyQueueError:
+                continue
+
+        # Update weights by overwriting self.parameter_pointers
+        for idx, params in self.parameter_pointers.items():
+            self.parameter_pointers[idx] = aggregate_weights[idx] / float(self.pending_work_queues.num_devices)
 
     def train(self):
         while self.curr_epoch < self.n_epochs:
@@ -121,8 +128,8 @@ class Solver(object):
                 # Update internal fairness state
                 self.fairness_state.update_device_fairness(self.ip_addr, self.curr_epoch)
                 model_update = ModelUpdate(
-                    gradients=epoch_weights,
-                    gradient_metadata=self.fairness_state),
+                    updates=epoch_weights,
+                    update_metadata=self.fairness_state)
                 # Enqueue local gradients for other hosts' queues
                 for host_id in self.pending_work_queues.other_hosts:
                     # TODO(ml/wt): send model_update to host_id

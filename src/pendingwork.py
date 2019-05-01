@@ -62,7 +62,35 @@ class PendingWork(object):
         self._update_min_and_max()
         self.release()
 
-    def dequeue(self) -> ModelUpdate:
+    def dequeue(self, host: str) -> ModelUpdate:
+        # :brief Pop an update from the given host's queue
+        # :return [ModelUpdate] a dequeued ModelUpdate object
+        # :warning Raises an EmptyQueueError when no element could be returned.
+        self.write()
+        if self.total_no_of_updates == 0:
+            self.release()
+            raise EmptyQueueError("All queues empty")
+
+        ret = None
+        if not host in self.queues:
+            # Creates queue if none exists
+            # Will never push back for creating new queue
+            self.queues[host] = UpdateQueue()
+            self._update_min_and_max()
+
+        if (self.queues[host].len > 0):
+            ret = self.queues[host].dequeue()
+
+        if ret == None:
+            self.release()
+            raise EmptyQueueError("could not pop from queue for host: " + host)
+
+        self.total_no_of_updates -= 1
+        self._update_min_and_max()
+        self.release()
+        return ret
+
+    def dequeue_random(self) -> ModelUpdate:
         # :brief Pop an update from one of the queues at random.
         # The algorithm picks out an element, by dequeueing from a random queue.
         # The queue is chosen with probability proportional to its length.

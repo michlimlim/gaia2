@@ -1,19 +1,19 @@
 import json
 
 class ModelUpdate(object):
-    def __init__(self, gradients, gradient_metadata):
+    def __init__(self, updates, update_metadata):
         # :brief Store a model update sent by a device from its local data
-        # :param gradients [dict<int, torch.tensor>] maps the int i-th module of the network to the 
-        #     gradient update
-        # :param gradient_metadata [dict] user-defined GradientMetadata object in __dict__ form
-        self.gradients = gradients
-        self.gradient_metadata = gradient_metadata
+        # :param updates [dict<int, torch.tensor>] maps the int i-th module of the network to the 
+        #     gradient update. Only int needed because all devices have same network arch
+        # :param gradient_metadata [dict] user-defined UpdateMetadata object in __dict__ form
+        self.updates = updates
+        self.update_metadata = update_metadata
 
     def to_json(self):
         # :brief Converts current object into a json representation
         return json.dumps({
-            'gradients': self.gradients,
-            'gradient_metadata': self.gradient_metadata.__dict__
+            'updates': self.updates,
+            'update_metadata': self.update_metadata.__dict__
         })
 
     def from_json(json_string):
