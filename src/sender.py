@@ -88,7 +88,7 @@ class Sender(object):
         except EmptyQueueError:
             self.release_host(host)
             return
-        res = requests.post(host+"/send_update", json={"sender": host, "update": update})
+        res = self.send_update_to_host(update, host)
         if res.status_code >= 400 and res.status_code < 500:
             self.wait_times[host] *= 2
             self.release_host(host)
@@ -102,6 +102,9 @@ class Sender(object):
         self._update_min_and_max()
         self.release_host(host)
 
+    def send_update_to_host(self, update, host):
+        return requests.post("http://" + host+"/send_update", json={"sender": host, "update": update})
+        
     # Call `read` before reading, and `release` after reading.
     # Call `write` before writing, and `release` after writing.
 
