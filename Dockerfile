@@ -5,5 +5,5 @@ RUN apt-get install -y python-pip python-dev build-essential
 COPY . /app
 WORKDIR /app
 RUN pip install -r requirements.txt
-ENTRYPOINT ["python"]
-CMD ["python main.py -me 5000 -them 5001"]
+ENTRYPOINT ["python", "main.py"]
+#CMD python main.py -me localhost:5000 -them localhost:5001 localhost:5002
