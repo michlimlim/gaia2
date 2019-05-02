@@ -5,7 +5,7 @@ import random
 from src.util import DevicePushbackError
 from src.util import EmptyQueueError
 from src.util import ExtraFatal
-from src.model_update import ModelUpdate
+from src.update_metadata.model_update import ModelUpdate
 
 class PendingWork(object):
     # PendingWork holds all the queues of model

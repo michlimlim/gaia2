@@ -6,22 +6,24 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 # Code-specific imports
-from src.model_update import ModelUpdate
+from src.update_metadata.model_update import ModelUpdate
 from src.update_metadata.device_fairness import DeviceFairnessUpdateMetadata, DeviceFairnessReceiverState
 from src.pendingwork import PendingWork
 from src.data_partition import build_dataset_loader
 from src.neural_net import Net
-from src.util import EmptyQueueError
+from src.sender import Sender
+from src.util import EmptyQueueError, ExtraFatal
 
 # Create a function that creates nodes that hold partitioned training data
 def initialize_current_node(pending_work_queues, dataset='MNIST', dataset_dir='./data'):
     curr_node_ip_addr = pending_work_queues.my_host
     other_nodes_ip_addrs = pending_work_queues.other_hosts
     train_loader, test_loader = build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset, dataset_dir, 100)
-    return Solver(train_loader, test_loader, pending_work_queues, dataset, 10, 0.005)
+    sender_queues = Sender(1000)
+    return Solver(train_loader, test_loader, pending_work_queues, sender_queues, dataset, 10, 0.005)
 
 class Solver(object):
-    def __init__(self, train_loader, test_loader, pending_work_queues, dataset='MNIST', n_epochs=25, lr=0.005, k=3):
+    def __init__(self, train_loader, test_loader, pending_work_queues, sender_queues, dataset='MNIST', n_epochs=25, lr=0.005, k=2):
         self.n_epochs = n_epochs
         self.curr_epoch = 0
         self.train_loader = train_loader
@@ -30,6 +32,9 @@ class Solver(object):
         self.net = Net(image_dim=self.image_dim)
         self.parameter_pointers = self.get_nn_module_parameter_pointers(self.net)
         self.loss_fn = nn.CrossEntropyLoss()
+        self.sender_queues = sender_queues
+        self.sender_queues.setup(pending_work_queues.my_host, pending_work_queues.other_hosts)
+        self.sender_queues.run()
         self.pending_work_queues = pending_work_queues
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.ip_addr = pending_work_queues.my_host
@@ -54,7 +59,6 @@ class Solver(object):
         weights_before_epoch = {}
         weights_after_epoch = {}
         epoch_loss = 0
-        minibatches = 0
 
         # Store a copy of weights before epoch
         for idx, params in self.parameter_pointers.items():
@@ -62,7 +66,6 @@ class Solver(object):
 
         # Train through minibatches
         for images, labels in self.train_loader:
-            minibatches += 1
             images = Variable(images).view(-1, self.image_dim)
             labels = Variable(labels)
             if torch.cuda.is_available():
@@ -83,64 +86,61 @@ class Solver(object):
 
         # Restore current neural net's weights to weights before epoch
         for idx, params in self.parameter_pointers.items():
-            weights_after_epoch = params.clone()
+            weights_after_epoch[idx] = params.clone()
             # print(params - weights_after_epoch[idx]) # This is the gradient
             self.parameter_pointers[idx] = weights_before_epoch[idx]
 
-        """
-        Defunct because we now send weights instead of gradients
-        # Calculate diff between curr params and previous params    
-        for idx, params in enumerate(self.net.parameters()):
-            epoch_gradient_updates[idx] = params - weights_before_epoch[idx]
-        """
         return weights_after_epoch
 
-    def aggregate_received_weights(self):
-        # TODO: (ml/wt) To simplify calculation, we should just enqueue our own weights into the 
-        # aggregation queues. right now i don't think this is implemented
-        num_devices_used_during_agg = 0
-        aggregate_weights = {}
-        for host_id in self.pending_work_queues.other_hosts:
+    def aggregate_received_updates(self):
+        # dict<str, ModelUpdate> Maps host ip addr to its ModelUpdate object
+        host_to_model_update = {}
+
+        for host_id in self.pending_work_queues.other_hosts + [self.pending_work_queues.my_host]:
             # This should be a ModelUpdate object
             try:
-                model_update = self.pending_work_queues.dequeue(host_id)
-                update_metadata = model_update.update_metadata
-                for idx, params in model_update.updates:
-                    aggregate_weights[idx] += params
-                num_devices_used_during_agg += 1
-                self.fairness_state.update_device_fairness(
-                    host_id,
-                    update_metadata.device_ip_addr_to_epoch_dict[host_id])
+                # The dequeue function ensures model_update isn't None
+                # Question: Why does dequeue return a list, instead of the item itself???
+                model_update_dict = self.pending_work_queues.dequeue(host_id)[0]
+                model_update = ModelUpdate.from_dict(model_update_dict)
+                # Discard an unfair incoming model update
+                if not self.fairness_state.check_fairness_before_aggregation(model_update):
+                    continue
+                host_to_model_update[host_id] = model_update
             except EmptyQueueError:
                 continue
 
+        if len(host_to_model_update) == 0:
+            print('Nothing to aggregate')
+            return
+
+        weights_for_each_update = self.fairness_state.calculate_weights_for_each_host(host_to_model_update)
+
         # Update weights by overwriting self.parameter_pointers
-        for idx, params in self.parameter_pointers.items():
-            self.parameter_pointers[idx] = aggregate_weights[idx] / float(self.pending_work_queues.num_devices)
+        for idx, _ in self.parameter_pointers.items():
+            self.parameter_pointers[idx] = sum([
+                host_to_model_update[host].updates[idx] * weights_for_each_update[host]
+                for host in host_to_model_update.keys()
+            ])
 
     def train(self):
         while self.curr_epoch < self.n_epochs:
             print(self.curr_epoch)
             # Check if we can backprop
-            if self.fairness_state.check_device_fairness():
+            if self.fairness_state.check_fairness_before_backprop():
                 epoch_weights = self.backprop_and_get_new_weights()
                 self.curr_epoch += 1
                 # Update internal fairness state
-                self.fairness_state.update_device_fairness(self.ip_addr, self.curr_epoch)
+                self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
                 model_update = ModelUpdate(
                     updates=epoch_weights,
-                    update_metadata=self.fairness_state)
-                # Enqueue local gradients for other hosts' queues
-                for host_id in self.pending_work_queues.other_hosts:
-                    # TODO(ml/wt): send model_update to host_id
-                    # The fact that we used an object should probably get 
-                    # Python to use a pointer to the object instead of copying the update
-                    # deeply over and over again
-                    pass
-                    
-            # If we can't, we can only try to aggregate
-            else:
-                self.aggregate_received_weights()
+                    update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
+                # Enqueue local update to send to other hosts' queues
+                self.sender_queues.enqueue(model_update.to_json())
+                # Enqueue local update to my own receiving queue
+                self.pending_work_queues.enqueue(model_update.__dict__, self.ip_addr)
+            # If can't backprop, try to aggregate
+            self.aggregate_received_updates()
 
     def evaluate(self):
         total = 0

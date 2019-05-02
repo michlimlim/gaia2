@@ -8,11 +8,11 @@ import unit.sender as sender
 
 def main():
     calc = TestCalculator()
-    test_unit.add_tests(calc)
-    #ml_thread.add_tests(calc)
-    pendingwork.add_tests(calc)
-    updatequeue.add_tests(calc)
-    sender.add_tests(calc)
+    #test_unit.add_tests(calc)
+    ml_thread.add_tests(calc)
+    #pendingwork.add_tests(calc)
+    #updatequeue.add_tests(calc)
+    #sender.add_tests(calc)
     calc.run()
 
 if __name__ == "__main__":
