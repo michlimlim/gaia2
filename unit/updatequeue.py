@@ -1,6 +1,6 @@
 from unit.unit import TestCalculator
 from src.util import EmptyQueueError
-from src.pendingwork import PendingWork
+from src.receiver import Receiver
 from src.updatequeue import UpdateQueue
 
 def test_update_queue(calc):

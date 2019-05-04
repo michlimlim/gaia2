@@ -9,22 +9,22 @@ from threading import Condition
 # Code-specific imports
 from src.update_metadata.model_update import ModelUpdate
 from src.update_metadata.device_fairness import DeviceFairnessUpdateMetadata, DeviceFairnessReceiverState
-from src.pendingwork import PendingWork
+from src.receiver import Receiver
 from src.data_partition import build_dataset_loader
 from src.neural_net import Net
 from src.sender import Sender
 from src.util import EmptyQueueError, ExtraFatal
 
 # Create a function that creates nodes that hold partitioned training data
-def initialize_current_node(pending_work_queues, dataset='MNIST', dataset_dir='./data'):
-    curr_node_ip_addr = pending_work_queues.my_host
-    other_nodes_ip_addrs = pending_work_queues.other_hosts
+def initialize_current_node(receiver, dataset='MNIST', dataset_dir='./data'):
+    curr_node_ip_addr = receiver.my_host
+    other_nodes_ip_addrs = receiver.other_hosts
     train_loader, test_loader = build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset, dataset_dir, 100)
     sender_queues = Sender(1000)
-    return Solver(train_loader, test_loader, pending_work_queues, sender_queues, dataset, 10, 0.005)
+    return Solver(train_loader, test_loader, receiver, sender_queues, dataset, 10, 0.005)
 
 class Solver(object):
-    def __init__(self, train_loader, test_loader, pending_work_queues, sender_queues, dataset='MNIST', n_epochs=25, lr=0.005, k=2):
+    def __init__(self, train_loader, test_loader, receiver, sender_queues, dataset='MNIST', n_epochs=25, lr=0.005, k=2):
         self.n_epochs = n_epochs
         self.curr_epoch = 0
         self.train_loader = train_loader
@@ -34,13 +34,13 @@ class Solver(object):
         self.parameter_pointers = self.get_nn_module_parameter_pointers(self.net)
         self.loss_fn = nn.CrossEntropyLoss()
         self.sender_queues = sender_queues
-        self.sender_queues.setup(pending_work_queues.my_host, pending_work_queues.other_hosts)
+        self.sender_queues.setup(receiver.my_host, receiver.other_hosts)
         self.sender_queues.run()
-        self.pending_work_queues = pending_work_queues
+        self.receiver = receiver
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
-        self.ip_addr = pending_work_queues.my_host
+        self.ip_addr = receiver.my_host
         device_ip_addr_to_epoch_dict = {}
-        for ip_addr in pending_work_queues.other_hosts + [pending_work_queues.my_host]:
+        for ip_addr in receiver.other_hosts + [receiver.my_host]:
             device_ip_addr_to_epoch_dict[ip_addr] = 0
         self.fairness_state = DeviceFairnessReceiverState(
             k,
@@ -97,12 +97,12 @@ class Solver(object):
         # dict<str, ModelUpdate> Maps host ip addr to its ModelUpdate object
         host_to_model_update = {}
 
-        for host_id in self.pending_work_queues.other_hosts + [self.pending_work_queues.my_host]:
+        for host_id in self.receiver.other_hosts + [self.receiver.my_host]:
             # This should be a ModelUpdate object
             try:
                 # The dequeue function ensures model_update isn't None
                 # Question: Why does dequeue return a list, instead of the item itself???
-                model_update_dict = self.pending_work_queues.dequeue(host_id)[0]
+                model_update_dict = self.receiver.dequeue(host_id)[0]
                 print('AGG FROM ', host_id)
                 model_update = ModelUpdate.from_dict(model_update_dict, host_id)
                 # Discard an unfair incoming model update
@@ -150,7 +150,7 @@ class Solver(object):
                 # Enqueue local update to send to other hosts' queues
                 self.sender_queues.enqueue(model_update.to_json())
                 # Enqueue local update to my own receiving queue
-                self.pending_work_queues.enqueue(model_update, self.ip_addr)
+                self.receiver.enqueue(model_update, self.ip_addr)
             # If can't backprop, try to aggregate
             self.aggregate_received_updates()
 

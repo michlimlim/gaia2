@@ -7,15 +7,15 @@ from src.util import EmptyQueueError
 from src.util import ExtraFatal
 from src.update_metadata.model_update import ModelUpdate
 
-class PendingWork(object):
-    # PendingWork holds all the queues of model
+class Receiver(object):
+    # Receiver holds all the queues of model
     # updates to be processed. This is implemented
     # for one tenant only, and it does not include
     # a global model queue. This class is thread safe.
     # TODO(ml): Add a global model queue.
 
     def __init__(self, max_qlen_ratio):
-        # :brief Create a new PendingWork instance.
+        # :brief Create a new Receiver instance.
         self.queues = {}
         self.lock = RLock()
         self.my_host = ''
@@ -24,6 +24,11 @@ class PendingWork(object):
         self.total_no_of_updates = 0
         self.min_queue_len = None
         self.k = max_qlen_ratio
+
+    def heartbeat(self, sender):
+        # :brief run a heartbeat update for a given sender.
+        # :param sender [str] the sender's id
+        # :return [str] JSON containing all of the live servers
 
     def setup(self, my_host, other_hosts):
         # :brief Set up a queue for each host.
@@ -162,9 +167,9 @@ class PendingWork(object):
 
     def __str__(self):
         # :brief Print out elements in all queues, for debugging purposes.
-        # :return [str] the PendingWork queues as a string
+        # :return [str] the Receiver queues as a string
         self.read()
-        re = "\nPendingWork:\n"
+        re = "\nReceiver:\n"
         for qid in self.queues:
             re = re + qid + ":" + str(self.queues[qid].queue) + "\n"
         self.release()

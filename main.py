@@ -1,5 +1,5 @@
 from flask import Flask, request
-from src.pendingwork import PendingWork     
+from src.receiver import Receiver     
 from src.update_metadata.model_update import ModelUpdate
 from src.ml_thread import initialize_current_node          
 import threading
@@ -9,7 +9,7 @@ import requests
 
 app = Flask(__name__)
 
-pending_work_queues = PendingWork(100)
+receiver = Receiver(100)
 
 class MlThread(object):
     # params: node [Solver] instance of Solver object
@@ -34,9 +34,15 @@ def receive_update():
     # update is a [json_str]
     print(sender)
     # print(json.loads(update[0])['updates'])
-    pending_work_queues.enqueue(ModelUpdate(**json.loads(update[0])), sender)
-    print(pending_work_queues)
+    receiver.enqueue(ModelUpdate(**json.loads(update[0])), sender)
+    print(receiver)
     return "Send update is running"
+
+@app.route("/heartbeat", method="POST")
+def heartbeat():
+    sender = content['sender']
+    servers = receiver.heartbeat(sender)
+    return servers
 
 if __name__ == "__main__":
     # Intialize my_host and other_hosts from command line
@@ -54,9 +60,9 @@ if __name__ == "__main__":
         other_hosts.append(sys.argv[i])
 
     # Set up global queues with the hosts
-    pending_work_queues.setup(my_host, other_hosts)
-    node = initialize_current_node(pending_work_queues, 'MNIST', './data')
-    pending_work_queues.setup_connection_to_node(node)
+    receiver.setup(my_host, other_hosts)
+    node = initialize_current_node(receiver, 'MNIST', './data')
+    receiver.setup_connection_to_node(node)
 
     port = my_host.split(":")[1]
     ml_thread = MlThread(node)
