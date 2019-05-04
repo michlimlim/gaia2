@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
+from threading import Condition
 
 # Code-specific imports
 from src.update_metadata.model_update import ModelUpdate
@@ -43,17 +44,17 @@ class Solver(object):
             device_ip_addr_to_epoch_dict[ip_addr] = 0
         self.fairness_state = DeviceFairnessReceiverState(
             k,
-            pending_work_queues.num_devices,
             device_ip_addr_to_epoch_dict)
         if torch.cuda.is_available():
             self.net = self.net.cuda()
+        self.condition = Condition()
 
     # :brief nn.module.parameters() yields a generator of nn.Parameter, but unfortunately
     #   we can't use it to later the original, so we need to remember pointers for each
     #   nn.Parameter in the neural net
     # :param nn_module [nn.module] module to extract nn.Parameter pointers from
     def get_nn_module_parameter_pointers(self, nn_module):
-        return { idx: params for idx, params in enumerate(self.net.parameters()) }
+        return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
     def backprop_and_get_new_weights(self):
         weights_before_epoch = {}
@@ -102,20 +103,31 @@ class Solver(object):
                 # The dequeue function ensures model_update isn't None
                 # Question: Why does dequeue return a list, instead of the item itself???
                 model_update_dict = self.pending_work_queues.dequeue(host_id)[0]
-                model_update = ModelUpdate.from_dict(model_update_dict)
+                print('AGG FROM ', host_id)
+                model_update = ModelUpdate.from_dict(model_update_dict, host_id)
                 # Discard an unfair incoming model update
                 if not self.fairness_state.check_fairness_before_aggregation(model_update):
                     continue
                 host_to_model_update[host_id] = model_update
             except EmptyQueueError:
+                print('empty for now', host_id)
                 continue
 
         if len(host_to_model_update) == 0:
-            print('Nothing to aggregate')
-            return
+            if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
+                return
+            else:
+                print('Nothing to aggregate, and we cannot backprop')
+                print(self.fairness_state.device_ip_addr_to_epoch_dict)
+                print(self.fairness_state.max_epoch_num, self.fairness_state.min_epoch_num, self.fairness_state.k)
+                with self.condition:
+                    print("ML THREAD SLEEPING")
+                    self.condition.wait()
+                print("ML THREAD WOKE UP")
+                return
 
         weights_for_each_update = self.fairness_state.calculate_weights_for_each_host(host_to_model_update)
-
+        self.fairness_state.update_internal_state_after_aggregation(self.ip_addr, host_to_model_update)
         # Update weights by overwriting self.parameter_pointers
         for idx, _ in self.parameter_pointers.items():
             self.parameter_pointers[idx] = sum([
@@ -125,9 +137,9 @@ class Solver(object):
 
     def train(self):
         while self.curr_epoch < self.n_epochs:
-            print(self.curr_epoch)
+            print("START CURRENT EPOCH:", self.curr_epoch)
             # Check if we can backprop
-            if self.fairness_state.check_fairness_before_backprop():
+            if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
                 epoch_weights = self.backprop_and_get_new_weights()
                 self.curr_epoch += 1
                 # Update internal fairness state
@@ -138,7 +150,7 @@ class Solver(object):
                 # Enqueue local update to send to other hosts' queues
                 self.sender_queues.enqueue(model_update.to_json())
                 # Enqueue local update to my own receiving queue
-                self.pending_work_queues.enqueue(model_update.__dict__, self.ip_addr)
+                self.pending_work_queues.enqueue(model_update, self.ip_addr)
             # If can't backprop, try to aggregate
             self.aggregate_received_updates()
 

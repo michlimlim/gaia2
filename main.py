@@ -3,6 +3,7 @@ from src.pendingwork import PendingWork
 from src.update_metadata.model_update import ModelUpdate
 from src.ml_thread import initialize_current_node          
 import threading
+import json
 import sys
 import requests
 
@@ -10,11 +11,16 @@ app = Flask(__name__)
 
 pending_work_queues = PendingWork(100)
 
-def main():
-    node = initialize_current_node(pending_work_queues, 'MNIST', './data')
-    node.train()
-    node.evaluate()
-    return "App ran"
+class MlThread(object):
+    # params: node [Solver] instance of Solver object
+    def __init__(self, node):
+        self.node = node
+    def run(self):
+        t = threading.Thread(target=self._actually_run)
+        t.start()
+    def _actually_run(self):
+        self.node.train()
+        self.node.evaluate()
 
 @app.route("/")
 def hello():
@@ -25,8 +31,11 @@ def receive_update():
     content = request.json
     sender = content['sender']
     update = content['update']
-    pending_work_queues.enqueue(ModelUpdate(**update), sender)
-    # print(pending_work_queues)
+    # update is a [json_str]
+    print(sender)
+    # print(json.loads(update[0])['updates'])
+    pending_work_queues.enqueue(ModelUpdate(**json.loads(update[0])), sender)
+    print(pending_work_queues)
     return "Send update is running"
 
 if __name__ == "__main__":
@@ -46,7 +55,12 @@ if __name__ == "__main__":
 
     # Set up global queues with the hosts
     pending_work_queues.setup(my_host, other_hosts)
+    node = initialize_current_node(pending_work_queues, 'MNIST', './data')
+    pending_work_queues.setup_connection_to_node(node)
 
-    main()
     port = my_host.split(":")[1]
+    ml_thread = MlThread(node)
     threading.Thread(target=app.run, kwargs=dict(host="localhost", port=port)).start()
+    ml_thread.run()
+
+

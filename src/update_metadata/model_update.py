@@ -13,12 +13,13 @@ class ModelUpdate(object):
     def to_json(self):
         # :brief Converts current object into a json representation
         return json.dumps({
-            'updates': {k: v.data.numpy().tolist() for k, v in self.updates.items()},
+            'updates': {str(k): v.data.numpy().tolist() for k, v in self.updates.items()},
             'update_metadata': self.update_metadata
         })
 
-    def from_dict(d):
+    @staticmethod
+    def from_dict(d, sender):
         # :brief Converts dict version of model update into an object form
-        model_update_obj = ModelUpdate(**d)
+        model_update_obj = d
         model_update_obj.updates = {k: torch.Tensor(v) for k,v in model_update_obj.updates.items()}
         return model_update_obj

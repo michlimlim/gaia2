@@ -38,6 +38,10 @@ class PendingWork(object):
             self.queues[host] = UpdateQueue()
         self.release()
 
+    def setup_connection_to_node(self, node):
+        # :brief Connect to node so that we can also wake it up
+        self.node = node
+
     def enqueue(self, update: ModelUpdate, host):
         # :brief Add an update to corresponding queue of a given host.
         # :param update [ModelUpdate] a model update that needs to be processed
@@ -59,6 +63,12 @@ class PendingWork(object):
                 raise DevicePushbackError("could not enqueue new update")
         queue.enqueue(update)
         self.total_no_of_updates += 1
+        # Wake ml thread up if it's sleeping because it couldn't backprop
+        # or aggregate
+        with self.node.condition:
+            print("INCOMING UPDATE WAKE UP ML THREAD")
+            self.node.condition.notify()
+
         self._update_min_and_max()
         self.release()
 

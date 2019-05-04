@@ -5,7 +5,8 @@ class UpdateMetadata(object):
     pass
 
 class UpdateReceiverState(object):
-    def check_fairness_before_backprop(self):
+    # :param my_device_ip_addr [str] Device ip address of the host calling this fn
+    def check_fairness_before_backprop(self, my_device_ip_addr: str):
         raise ExtraFatal("Must implement this method")
 
     def check_fairness_before_aggregation(self, model_update: ModelUpdate):

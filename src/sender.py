@@ -1,9 +1,9 @@
-from threading import RLock
+from threading import RLock, Event, Condition, Thread
 import time
+import requests
+
 from src.util import EmptyQueueError, DevicePushbackError
 from src.updatequeue import UpdateQueue
-import requests
-from threading import Thread
 
 class Sender(object):
     def __init__(self, k):
@@ -21,6 +21,7 @@ class Sender(object):
         self.total_no_of_updates = 0 
         self.min_queue_len = None
         self.k = k
+        self.condition = Condition()
 
     def setup(self, my_host, other_hosts):
         # :brief Set up a queue for each host.
@@ -30,7 +31,7 @@ class Sender(object):
         self.other_hosts = other_hosts
         self.num_devices = 1 + len(other_hosts)
         self.write()
-        self.queues[my_host] = UpdateQueue()
+        # self.queues[my_host] = UpdateQueue()
         self.wait_times[my_host] = .1
         self.last_sent_times[my_host] = 0
         self.host_locks[my_host] = RLock()
@@ -45,8 +46,8 @@ class Sender(object):
         # :brief Add an update to corresponding queue of a given host.
         # :param update [Object] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
-        all_hosts = self.other_hosts + [self.my_host]
         for host in self.queues:
+            print("SEND TO", host)
             self.write_host(host)
             queue = self.queues[host]
             if self.min_queue_len != None:
@@ -57,6 +58,10 @@ class Sender(object):
             self.total_no_of_updates += 1
             self._update_min_and_max()
             self.release_host(host)
+        # Enqueuing notifies the sender thread
+        with self.condition:
+            self.condition.notify()
+            print("ML THREAD WOKE UP SENDER THREAD")
     
     def run(self):
         # :brief Spawn a new thread and begin sending update requests to other devices
@@ -65,10 +70,15 @@ class Sender(object):
 
     def _actually_run(self):
         # :brief Send updates to peers when possible.
-        all_hosts = self.other_hosts + [self.my_host]
         while True:
-            for host in all_hosts:
-                self._update_host(host)
+            if self.total_no_of_updates > 0:
+                for host in self.other_hosts:
+                    self._update_host(host)
+            else:
+                with self.condition:
+                    print("SENDER THREAD SLEEPING")
+                    self.condition.wait()
+                print("SENDER THREAD WOKE UP FROM ML THREAD")
     
     # TODO (GS): To update min_queue_len after each enqueue and dequeue
     def _update_min_and_max(self):
@@ -88,7 +98,7 @@ class Sender(object):
         except EmptyQueueError:
             self.release_host(host)
             return
-        res = requests.post("http://" + host + "/send_update", json={"sender": host, "update": update})
+        res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
         if res.status_code >= 400 and res.status_code < 500:
             self.wait_times[host] *= 2
             self.release_host(host)
@@ -107,6 +117,7 @@ class Sender(object):
 
     def read_host(self, host):
         # :brief Read lock a host queue
+        print("READ HOST FOR HOST:", host)
         self.host_locks[host].acquire(blocking=0)
 
     def write_host(self, host):
@@ -115,6 +126,7 @@ class Sender(object):
 
     def release_host(self, host):
         # :breif Release a lock on the host queue.
+        print("RELEASE HOST FOR HOST", host)
         self.host_locks[host].release()
 
     def read(self):
