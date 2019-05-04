@@ -5,6 +5,7 @@ import random
 from src.util import DevicePushbackError
 from src.util import EmptyQueueError
 from src.util import ExtraFatal
+from src.update_metadata.model_update import ModelUpdate
 
 class PendingWork(object):
     # PendingWork holds all the queues of model
@@ -37,12 +38,14 @@ class PendingWork(object):
             self.queues[host] = UpdateQueue()
         self.release()
 
-    def enqueue(self, update, host):
+    def setup_connection_to_node(self, node):
+        # :brief Connect to node so that we can also wake it up
+        self.node = node
+
+    def enqueue(self, update: ModelUpdate, host):
         # :brief Add an update to corresponding queue of a given host.
-        # :param update [Object] a model update that needs to be processed
+        # :param update [ModelUpdate] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
-        # TODO(wt): Decide on a representation for model updates and
-        # replace the 'Object' typing above.
         self.write()
         if not host in self.queues:
             # Creates queue if none exists
@@ -60,16 +63,49 @@ class PendingWork(object):
                 raise DevicePushbackError("could not enqueue new update")
         queue.enqueue(update)
         self.total_no_of_updates += 1
+        # Wake ml thread up if it's sleeping because it couldn't backprop
+        # or aggregate
+        with self.node.condition:
+            print("INCOMING UPDATE WAKE UP ML THREAD")
+            self.node.condition.notify()
+
         self._update_min_and_max()
         self.release()
 
-    def dequeue(self):
+    def dequeue(self, host: str) -> ModelUpdate:
+        # :brief Pop an update from the given host's queue
+        # :return [ModelUpdate] a dequeued ModelUpdate object
+        # :warning Raises an EmptyQueueError when no element could be returned.
+        self.write()
+        if self.total_no_of_updates == 0:
+            self.release()
+            raise EmptyQueueError("All queues empty")
+
+        ret = None
+        if not host in self.queues:
+            # Creates queue if none exists
+            # Will never push back for creating new queue
+            self.queues[host] = UpdateQueue()
+            self._update_min_and_max()
+
+        if (self.queues[host].len > 0):
+            ret = self.queues[host].dequeue()
+
+        if ret == None:
+            self.release()
+            raise EmptyQueueError("could not pop from queue for host: " + host)
+
+        self.total_no_of_updates -= 1
+        self._update_min_and_max()
+        self.release()
+        return ret
+
+    def dequeue_random(self) -> ModelUpdate:
         # :brief Pop an update from one of the queues at random.
         # The algorithm picks out an element, by dequeueing from a random queue.
         # The queue is chosen with probability proportional to its length.
-        # :return [Object] a dequeued update
+        # :return [ModelUpdate] a dequeued ModelUpdate object
         # :warning Raises an EmptyQueueError when no element could be returned.
-        # TODO(wt): Ditto for this method.
         self.write()
         if self.total_no_of_updates == 0:
             self.release()
