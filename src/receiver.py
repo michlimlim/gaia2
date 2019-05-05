@@ -7,6 +7,8 @@ from src.util import EmptyQueueError
 from src.util import ExtraFatal
 from src.update_metadata.model_update import ModelUpdate
 
+MAX_SEC_BETWEEN_HEARTBEAT = 60
+
 class Receiver(object):
     # Receiver holds all the queues of model
     # updates to be processed. This is implemented
@@ -24,11 +26,8 @@ class Receiver(object):
         self.total_no_of_updates = 0
         self.min_queue_len = None
         self.k = max_qlen_ratio
-
-    def heartbeat(self, sender):
-        # :brief run a heartbeat update for a given sender.
-        # :param sender [str] the sender's id
-        # :return [str] JSON containing all of the live servers
+        self.heartbeat_time = MAX_SEC_BETWEEN_HEARTBEAT
+        self.last_heartbeat = {}
 
     def setup(self, my_host, other_hosts):
         # :brief Set up a queue for each host.
@@ -39,9 +38,25 @@ class Receiver(object):
         self.num_devices = 1 + len(other_hosts)
         self.write()
         self.queues[my_host] = UpdateQueue()
+        t = time.time()
         for host in other_hosts:
             self.queues[host] = UpdateQueue()
+            self.last_heartbeat[host] = t
         self.release()
+
+    def heartbeat(self, sender):
+        # :brief run a heartbeat update for a given sender.
+        # :param sender [str] the sender's id
+        # :return [str] JSON containing all of the live servers
+        self.write()
+        ret = []
+        t = time.time()
+        self.last_heartbeat[sender] = t
+        for host in self.last_heartbeat:
+            if t - self.last_heartbeat[host] < self.heartbeat_time:
+                ret.append(host)
+        self.release()
+        return str(ret)
 
     def setup_connection_to_node(self, node):
         # :brief Connect to node so that we can also wake it up
