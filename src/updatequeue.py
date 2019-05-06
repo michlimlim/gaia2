@@ -27,6 +27,9 @@ class UpdateQueue(object):
         self.queue = self.queue[1:]
         self.len -= 1
         return ret
+    
+    def clear(self):
+        del self.queue[:]
 
     def peek(self):
         # :brief Get the next element in the queue without dequeing it.

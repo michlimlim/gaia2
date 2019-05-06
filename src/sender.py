@@ -41,6 +41,16 @@ class Sender(object):
             self.last_sent_times[host] = 0
             self.host_locks[host] = RLock()
         self.release()
+    
+    def dequeue_every_queue(self):
+        # :brief Clear every host's queue
+        # :return nothing
+        self.write()
+        for queue in self.queues:
+            self.total_no_of_updates -= len(self.queues[queue])
+            self.queues[queue].clear()
+        self.release()
+        return
 
     def enqueue(self, update):
         # :brief Add an update to corresponding queue of a given host.

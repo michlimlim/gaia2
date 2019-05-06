@@ -100,6 +100,17 @@ class PendingWork(object):
         self.release()
         return ret
 
+    def dequeue_every_queue(self):
+        # :brief Clear every host's queue
+        # :return nothing
+        self.write()
+        for queue in self.queues:
+            self.total_no_of_updates -= len(self.queues[queue])
+            self.queues[queue].clear()
+        self.release()
+        return
+
+
     def dequeue_random(self) -> ModelUpdate:
         # :brief Pop an update from one of the queues at random.
         # The algorithm picks out an element, by dequeueing from a random queue.

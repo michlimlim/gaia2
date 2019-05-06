@@ -38,6 +38,15 @@ def receive_update():
     print(pending_work_queues)
     return "Send update is running"
 
+@app.route("/clear_all_queues", methods=['GET', 'POST'])
+def receive_update():
+    content = request.json
+    sender = content['sender']
+    sending_queues = pending_work_queues.node.sending_queues
+    sending_queues.dequeue_every_queue()
+    pending_work_queues.dequeue_every_queue()
+    return "Clear_all_queues is running"
+
 if __name__ == "__main__":
     # Intialize my_host and other_hosts from command line
     # Example:
