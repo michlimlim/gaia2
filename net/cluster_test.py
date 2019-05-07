@@ -32,7 +32,10 @@ def drawGraph(arr, i):
             colours.append("blue")
     image = plt.figure()
     nx.draw_networkx(G, node_color=colours, with_labels=True, font_weight='bold')
-    image.savefig("graph_" + str(i) + ".png")
+    if (i != -1):
+        image.savefig("graph_" + str(i) + ".png")
+    else:
+        image.savefig("final_graph.png")
     image.clear()
     plt.close(image)
 
@@ -53,6 +56,7 @@ if __name__ == "__main__":
 
     for i in range(0, num):
         createEdge(arr[i], arr[(i + 1) % num])
-        drawGraph(arr, i)
+        #drawGraph(arr, i)
 
+    drawGraph(arr, -1)
     info(arr)
