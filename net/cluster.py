@@ -6,7 +6,8 @@ class Node(object):
 
     def __init__(self):
         self.ID = id(self)
-        self.weight = random.randint(1, 10)
+        #self.weight = random.randint(1, 10)
+        self.weight = self.ID
         self.cluster = []
         self.clusterHead = None
         self.neighbours = []
@@ -28,13 +29,14 @@ class Node(object):
     def show(self):
         print("ID = %s | Weight = %s | clusterhead = %s" %
               (self.ID, self.weight, self.clusterHead.ID))
-        print(" ".join([str(mem.ID) for mem in self.cluster]))
+        if self.clusterHead == self:
+            print(" ".join([str(mem.ID) for mem in self.cluster]))
 
     def largestNeighbour(self):
         max = 0
         biggest = None
         for neighbour in self.neighbours:
-            if neighbour.weight > max and ch(neighbour):
+            if neighbour.weight > max and ch[neighbour]:
                 max = neighbour.weight
                 biggest = neighbour
         return biggest
