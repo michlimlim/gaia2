@@ -1,8 +1,11 @@
+import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 from cluster import Node
 from cluster import ch
 
+DEBUG = "PARTIAL"
+num = max(1, int(sys.argv[1]))
 G = nx.Graph()
 
 def createEdge(a, b):
@@ -20,33 +23,36 @@ def nodeFail(a):
     for neighbour in a.neighbours:
         breakEdge(a, neighbour)
 
-def drawGraph(arr):
+def drawGraph(arr, i):
     colours = []
     for n in arr:
         if ch[n]:
             colours.append("red")
         else:
             colours.append("blue")
-    nx.draw(G, node_color=colours, with_labels=False, font_weight='bold')
-    plt.savefig("graph.png")
+    image = plt.figure()
+    nx.draw_networkx(G, node_color=colours, with_labels=True, font_weight='bold')
+    image.savefig("graph_" + str(i) + ".png")
+    image.clear()
+    plt.close(image)
 
 def info(arr):
-    for node in arr:
-        node.show()
+    if DEBUG == "FULL":
+        for node in arr:
+            node.show()
+    elif DEBUG == "PARTIAL":
+        for node in arr:
+            if ch[node]:
+                node.show()
 
 if __name__ == "__main__":
     arr  = []
-    for i in range(0, 5):
-        arr.append(Node())
+    for i in range(0, num):
+        arr.append(Node(i))
         G.add_node(arr[i].ID)
 
-    for i in range(0, 5):
-        for j in range(i, 5):
-            if i != j:
-                createEdge(arr[i], arr[j])
+    for i in range(0, num):
+        createEdge(arr[i], arr[(i + 1) % num])
+        drawGraph(arr, i)
 
-    for i in range(0, 4):
-        breakEdge(arr[i], arr[i + 1])
-
-    drawGraph(arr)
     info(arr)
