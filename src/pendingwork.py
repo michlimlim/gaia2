@@ -24,8 +24,10 @@ class PendingWork(object):
         self.total_no_of_updates = 0
         self.min_queue_len = None
         self.k = max_qlen_ratio
+        self.leader = ""
+        self.frozen = False
 
-    def setup(self, my_host, other_hosts):
+    def setup(self, my_host, other_hosts, leader):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts
@@ -36,16 +38,26 @@ class PendingWork(object):
         self.queues[my_host] = UpdateQueue()
         for host in other_hosts:
             self.queues[host] = UpdateQueue()
+        self.leader = leader
         self.release()
 
     def setup_connection_to_node(self, node):
         # :brief Connect to node so that we can also wake it up
         self.node = node
+    
+    def freeze_node(self):
+        self.frozen = True
 
     def enqueue(self, update: ModelUpdate, host):
         # :brief Add an update to corresponding queue of a given host.
         # :param update [ModelUpdate] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
+        # If the queue is frozen (during synchronization) and receive non-leader, do not enqueue:
+        if self.frozen:
+            if host == self.leader:
+                self.frozen = False
+            else:
+                return
         self.write()
         if not host in self.queues:
             # Creates queue if none exists

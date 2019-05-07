@@ -9,7 +9,7 @@ def test_pending_work(calc):
 
     # Testing if setup successfully creates queues
     pending_work_queues.setup(
-        "localhost:5000", ["localhost:5001", "localhost:5002"]) 
+        "localhost:5000", ["localhost:5001", "localhost:5002"], "localhost:5000") 
     node = initialize_current_node(pending_work_queues, 'MNIST', './data')
     pending_work_queues.setup_connection_to_node(node)   
     check = pending_work_queues.get_total_no_of_updates() == 0
@@ -64,6 +64,17 @@ def test_pending_work(calc):
     pending_work_queues.dequeue_every_queue()
     calc.check(pending_work_queues.get_total_no_of_updates() == 0)
 
+    # Testing frozen function 
+    pending_work_queues.freeze_node()
+    # If non-leader tries to enqueue, nothing is enqueued
+    pending_work_queues.enqueue("5001 update", "localhost:5001")
+    calc.check(pending_work_queues.get_total_no_of_updates() == 0)
+    # If leader tries to enqueue, we enqueue an item
+    pending_work_queues.enqueue("5000 update", "localhost:5000")
+    calc.check(pending_work_queues.get_total_no_of_updates() == 1)
+    # After that, others should be allowed to enqueue
+    pending_work_queues.enqueue("5001 update", "localhost:5001")
+    calc.check(pending_work_queues.get_total_no_of_updates() == 2)
 
 
 def add_tests(calc):
