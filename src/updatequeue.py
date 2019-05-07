@@ -23,13 +23,14 @@ class UpdateQueue(object):
         # :warning raises an EmptyQueueError if the queue is empty
         if self.len < 1:
             raise EmptyQueueError("could not pop from empty queue")
-        ret = self.queue[-1:]
+        ret = self.queue[0]
         self.queue = self.queue[1:]
         self.len -= 1
         return ret
     
     def clear(self):
         del self.queue[:]
+        self.len = 0 
 
     def peek(self):
         # :brief Get the next element in the queue without dequeing it.
@@ -37,8 +38,7 @@ class UpdateQueue(object):
         # :warning raises an EmptyQueueError if the queue is empty
         if self.len < 1:
             raise EmptyQueueError("could not peek on empty queue")
-        ret = self.queue[-1:]
-        self.queue = self.queue[1:]
+        ret = self.queue[0]
         return ret
 
     def __len__(self):

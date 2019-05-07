@@ -31,8 +31,7 @@ def receive_update():
     content = request.json
     sender = content['sender']
     update = content['update']
-    pending_work_queues.enqueue(ModelUpdate(**json.loads(update[0])), sender)
-    print(pending_work_queues)
+    pending_work_queues.enqueue(ModelUpdate(**json.loads(update)), sender)
     return "Send update is running"
 
 @app.route("/clear_all_queues", methods=['GET', 'POST'])

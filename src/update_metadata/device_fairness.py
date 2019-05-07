@@ -91,7 +91,7 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                 ))
         # Overwrite newest epoch seen for the given device ip address
         self.device_ip_addr_to_epoch_dict[device_ip_addr] = epoch_num
-        print(self.device_ip_addr_to_epoch_dict)
+        # print(self.device_ip_addr_to_epoch_dict)
 
     def _update_internal_state_from_model_update_metadata(self, update_metadata: DeviceFairnessUpdateMetadata):
         for host_ip_addr, epoch_no in update_metadata.device_ip_addr_to_epoch_dict.items():

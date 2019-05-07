@@ -73,7 +73,7 @@ class PendingWork(object):
             return
         queue = self.queues[host]
         if self.min_queue_len != None:
-            if len(queue) > self.k * self.min_queue_len:
+            if queue.len > self.k * self.min_queue_len:
                 self.release()
                 raise DevicePushbackError("could not enqueue new update")
         queue.enqueue(update)
@@ -81,7 +81,7 @@ class PendingWork(object):
         # Wake ml thread up if it's sleeping because it couldn't backprop
         # or aggregate
         with self.node.condition:
-            print("INCOMING UPDATE WAKE UP ML THREAD")
+            # "INCOMING UPDATE WAKE UP ML THREAD")
             self.node.condition.notify()
 
         self._update_min_and_max()
@@ -127,7 +127,7 @@ class PendingWork(object):
         # :return nothing
         self.write()
         for queue in self.queues:
-            self.total_no_of_updates -= len(self.queues[queue])
+            self.total_no_of_updates -= self.queues[queue].len
             self.queues[queue].clear()
         self.release()
         return

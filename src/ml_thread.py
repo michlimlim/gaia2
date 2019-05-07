@@ -101,8 +101,7 @@ class Solver(object):
             # This should be a ModelUpdate object
             try:
                 # The dequeue function ensures model_update isn't None
-                # Question: Why does dequeue return a list, instead of the item itself???
-                model_update_dict = self.pending_work_queues.dequeue(host_id)[0]
+                model_update_dict = self.pending_work_queues.dequeue(host_id)
                 print('AGG FROM ', host_id)
                 model_update = ModelUpdate.from_dict(model_update_dict, host_id)
                 # Discard an unfair incoming model update
@@ -110,20 +109,20 @@ class Solver(object):
                     continue
                 host_to_model_update[host_id] = model_update
             except EmptyQueueError:
-                print('empty for now', host_id)
+                # print('empty for now', host_id)
                 continue
 
         if len(host_to_model_update) == 0:
             if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
                 return
             else:
-                print('Nothing to aggregate, and we cannot backprop')
-                print(self.fairness_state.device_ip_addr_to_epoch_dict)
-                print(self.fairness_state.max_epoch_num, self.fairness_state.min_epoch_num, self.fairness_state.k)
+                # print('Nothing to aggregate, and we cannot backprop')
+                # print(self.fairness_state.device_ip_addr_to_epoch_dict)
+                # print(self.fairness_state.max_epoch_num, self.fairness_state.min_epoch_num, self.fairness_state.k)
                 with self.condition:
-                    print("ML THREAD SLEEPING")
+                    # print("ML THREAD SLEEPING")
                     self.condition.wait()
-                print("ML THREAD WOKE UP")
+                # print("ML THREAD WOKE UP")
                 return
 
         weights_for_each_update = self.fairness_state.calculate_weights_for_each_host(host_to_model_update)
@@ -137,7 +136,7 @@ class Solver(object):
 
     def train(self):
         while self.curr_epoch < self.n_epochs:
-            print("START CURRENT EPOCH:", self.curr_epoch)
+            # print("START CURRENT EPOCH:", self.curr_epoch)
             # Check if we can backprop
             if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
                 epoch_weights = self.backprop_and_get_new_weights()
@@ -149,7 +148,7 @@ class Solver(object):
                     update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
                 # TODO(ml): Set the synchronization clock cycle in command line
                 if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and self.curr_epoch % 2 == 0:
-                    print("I'M SYNCHRONIZING!")
+                    print("Initiating Synchronization")
                     self.local_synchronize(model_update.to_json())
                 else:     
                     # Enqueue local update to send to other hosts' queues
@@ -179,10 +178,8 @@ class Solver(object):
         # Then we will send our updates 
         # :param update [Object] a model update that needs to be processed
         # Stop all enqueues from non-leader and clear all queues
-        print("CLEAR ALL QUEUES")
         self.pending_work_queues.clear_all()
         # Get all devices to clear their queuess
         self.sender_queues.enqueue({"CLEAR" : True, "epoch": self.curr_epoch})
-        print("ENQUEUE MODEL UPDATEs")
         # Then enqueue the model
         self.sender_queues.enqueue(update)
