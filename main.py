@@ -40,14 +40,13 @@ def clear_all_queues():
     # Leader will call this to freeze all nodes until it sends its own update
     content = request.json
     sender = content['sender']
+    epoch = content['epoch']
     if sender != pending_work_queues.leader:
         return "Non-leader tried to clear all queues"
-    # Stop all enqueues from non-leader
-    pending_work_queues.freeze_node()
-    # Clear all queues
-    sending_queues = pending_work_queues.node.sending_queues
-    sending_queues.dequeue_every_queue()
-    pending_work_queues.dequeue_every_queue()
+    # Stop all enqueues from non-leader, and clear all queues
+    pending_work_queues.clear_all()
+    # TODO(wt): Set ML Thread to the new epoch no. Figure out where to set this?
+    # pending_work_queues.node.curr_epoch = epoch
     return "Clear_all_queues is running"
 
 if __name__ == "__main__":

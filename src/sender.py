@@ -108,7 +108,10 @@ class Sender(object):
         except EmptyQueueError:
             self.release_host(host)
             return
-        res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
+        if len(update) > 0 and 'CLEAR' in update[0]:
+            res = requests.post("http://" + host + "/clear_all_queues", json={"sender": self.my_host, "epoch": update[0]['epoch']})
+        else:
+            res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
         if res.status_code >= 400 and res.status_code < 500:
             self.wait_times[host] *= 2
             self.release_host(host)

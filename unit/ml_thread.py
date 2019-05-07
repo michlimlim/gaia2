@@ -14,7 +14,7 @@ def test_ml_thread(calc):
     node_1 = initialize_current_node(pending_work_queues_1, 'MNIST', './data')
     node_2 = initialize_current_node(pending_work_queues_2, 'MNIST', './data')
     node_3 = initialize_current_node(pending_work_queues_3, 'MNIST', './data')
-    
+
     node_1.train()
     node_1.evaluate()
     node_2.train()

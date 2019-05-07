@@ -41,6 +41,9 @@ class PendingWork(object):
         self.leader = leader
         self.release()
 
+    def is_leader(self):
+        return self.my_host == self.leader
+
     def setup_connection_to_node(self, node):
         # :brief Connect to node so that we can also wake it up
         self.node = node
@@ -111,6 +114,13 @@ class PendingWork(object):
         self._update_min_and_max()
         self.release()
         return ret
+
+    def clear_all(self):
+        # Stop all enqueues from non-leader
+        self.freeze_node()
+        # Clear all queues
+        self.node.sender_queues.dequeue_every_queue()
+        self.dequeue_every_queue()
 
     def dequeue_every_queue(self):
         # :brief Clear every host's queue

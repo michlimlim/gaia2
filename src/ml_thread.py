@@ -147,8 +147,13 @@ class Solver(object):
                 model_update = ModelUpdate(
                     updates=epoch_weights,
                     update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
-                # Enqueue local update to send to other hosts' queues
-                self.sender_queues.enqueue(model_update.to_json())
+                # TODO(ml): Set the synchronization clock cycle in command line
+                if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and self.curr_epoch % 2 == 0:
+                    print("I'M SYNCHRONIZING!")
+                    self.local_synchronize(model_update.to_json())
+                else:     
+                    # Enqueue local update to send to other hosts' queues
+                    self.sender_queues.enqueue(model_update.to_json())
                 # Enqueue local update to my own receiving queue
                 self.pending_work_queues.enqueue(model_update, self.ip_addr)
             # If can't backprop, try to aggregate
@@ -167,4 +172,17 @@ class Solver(object):
             total += labels.size(0)
             correct += (predicted.cpu() == labels).sum()
         print(f'Accuracy: {100 * correct / total:.2f}%')
-
+    
+    def local_synchronize(self, update):
+        # :brief Synchronize all devices in the cluster with an update.
+        # We will clear all queues in self and other devices first
+        # Then we will send our updates 
+        # :param update [Object] a model update that needs to be processed
+        # Stop all enqueues from non-leader and clear all queues
+        print("CLEAR ALL QUEUES")
+        self.pending_work_queues.clear_all()
+        # Get all devices to clear their queuess
+        self.sender_queues.enqueue({"CLEAR" : True, "epoch": self.curr_epoch})
+        print("ENQUEUE MODEL UPDATEs")
+        # Then enqueue the model
+        self.sender_queues.enqueue(update)

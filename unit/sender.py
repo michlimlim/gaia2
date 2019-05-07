@@ -17,10 +17,18 @@ def test_sender(calc):
     calc.check(sender.total_no_of_updates == 2)
     sender.enqueue("update")
     calc.check(sender.total_no_of_updates == 4)
+    # sender.run()
 
     # Testing if dequeue removes every queue
     sender.dequeue_every_queue()
     calc.check(sender.total_no_of_updates == 0)
+        
+    # Testing if one can insert a clear signal
+    # sender.enqueue({"CLEAR" : True, "epoch": 6})
+    # calc.check(sender.total_no_of_updates == 2)
+    # sender.run()
+    
+
     
 def add_tests(calc):
     calc.add_test(test_sender)
