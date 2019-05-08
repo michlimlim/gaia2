@@ -95,6 +95,8 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
 
     def _update_internal_state_from_model_update_metadata(self, update_metadata: DeviceFairnessUpdateMetadata):
         for host_ip_addr, epoch_no in update_metadata.device_ip_addr_to_epoch_dict.items():
+            if host_ip_addr not in self.device_ip_addr_to_epoch_dict:
+                self.device_ip_addr_to_epoch_dict[host_ip_addr] = 0
             if epoch_no > self.device_ip_addr_to_epoch_dict[host_ip_addr]:
                 self._update_device_epoch(host_ip_addr, epoch_no)
 

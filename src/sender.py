@@ -12,12 +12,14 @@ class Sender(object):
         self.lock = RLock()
         self.my_host = None
         self.other_hosts = None
+        self.other_leaders = None
         self.wait_times = {}
         self.last_sent_times = {}
         self.num_devices = -1
         self.last_sent_times = {}
         self.wait_times = {}
         self.host_locks = {}
+        # Includes both the queues for other_hosts and other_leaders
         self.queues = {}
         self.total_no_of_updates = 0 
         self.min_queue_len = None
@@ -31,7 +33,7 @@ class Sender(object):
         self.my_host = my_host
         self.other_hosts = other_hosts
         self.other_leaders = other_leaders
-        self.num_devices = 1 + len(other_hosts)
+        self.num_devices = 1 + len(other_hosts) + len(other_leaders)
         self.write()
         self.wait_times[my_host] = .1
         self.last_sent_times[my_host] = 0
@@ -54,8 +56,8 @@ class Sender(object):
         return
 
     def enqueue(self, update, other_leaders = False):
-        # :brief Add an update to corresponding queue of hosts in same cluster.
-        # Add the update to other_leaders queues if flag is set as True
+        # :brief Add an update to hosts in same cluster if False.
+        # Add the update to other_leaders if flag is set as True.
         # :param update [Object] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
         queues = self.other_leaders if other_leaders else self.other_hosts 
@@ -86,7 +88,7 @@ class Sender(object):
         # :brief Send updates to peers when possible.
         while True:
             if self.total_no_of_updates > 0:
-                for host in self.other_hosts + self.other_leaders:
+                for host in self.queues:
                     self._update_host(host)
             else:
                 with self.condition:

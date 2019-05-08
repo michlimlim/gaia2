@@ -97,7 +97,7 @@ class Solver(object):
         # dict<str, ModelUpdate> Maps host ip addr to its ModelUpdate object
         host_to_model_update = {}
 
-        for host_id in self.pending_work_queues.other_hosts + [self.pending_work_queues.my_host]:
+        for host_id in self.pending_work_queues.other_hosts + self.pending_work_queues.other_leaders + [self.pending_work_queues.my_host]:
             # This should be a ModelUpdate object
             try:
                 # The dequeue function ensures model_update isn't None
@@ -148,14 +148,14 @@ class Solver(object):
                     update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
                 # TODO(ml): Set the synchronization clock cycle in command line
                 if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
+                    if self.curr_epoch % 5 == 0:
+                        print("Initiating Inter-cluster non-blocking communication")
+                        self.sender_queues.enqueue(model_update.to_json(), True)
                     if self.curr_epoch % 2 == 0:
                         print("Initiating Local Synchronization")
                         self.local_synchronize(model_update.to_json())
-                    if self.curr_epoch % 5 == 0:
-                        print("Initiating Inter-cluster non-blocking communication")
-                        self.local_synchronize(model_update.to_json())
                 else:     
-                    # Enqueue local update to send to other hosts' queues
+                    # Enqueue local update to send to other hosts (in the cluster)' queues
                     self.sender_queues.enqueue(model_update.to_json())
                 # Enqueue local update to my own receiving queue
                 self.pending_work_queues.enqueue(model_update, self.ip_addr)
