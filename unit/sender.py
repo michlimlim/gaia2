@@ -10,7 +10,7 @@ class HTTPResponse(object):
 
 def test_sender(calc):
     calc.context("sender")
-    sender.setup("localhost:5000", ["localhost:5001","localhost:5002"])
+    sender.setup("localhost:5000", ["localhost:5001","localhost:5002"], ["localhost:5003"])
     
     # Testing if enqueue adds items to correct queues
     sender.enqueue("update")

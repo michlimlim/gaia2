@@ -24,19 +24,20 @@ class Sender(object):
         self.k = k
         self.condition = Condition()
 
-    def setup(self, my_host, other_hosts):
+    def setup(self, my_host, other_hosts, other_leaders):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts
         self.my_host = my_host
         self.other_hosts = other_hosts
+        self.other_leaders = other_leaders
         self.num_devices = 1 + len(other_hosts)
         self.write()
         # self.queues[my_host] = UpdateQueue()
         self.wait_times[my_host] = .1
         self.last_sent_times[my_host] = 0
         self.host_locks[my_host] = RLock()
-        for host in other_hosts:
+        for host in other_hosts + other_leaders:
             self.queues[host] = UpdateQueue()
             self.wait_times[host] = .1
             self.last_sent_times[host] = 0

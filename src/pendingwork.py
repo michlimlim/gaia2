@@ -27,18 +27,19 @@ class PendingWork(object):
         self.leader = ""
         self.frozen = False
 
-    def setup(self, my_host, other_hosts, leader):
+    def setup(self, my_host, other_hosts, leader, other_leaders):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts
         self.my_host = my_host
         self.other_hosts = other_hosts
-        self.num_devices = 1 + len(other_hosts)
+        self.other_leaders = other_leaders
+        self.leader = leader
+        self.num_devices = 1 + len(other_hosts) + len(other_leaders)
         self.write()
         self.queues[my_host] = UpdateQueue()
-        for host in other_hosts:
+        for host in other_hosts + other_leaders:
             self.queues[host] = UpdateQueue()
-        self.leader = leader
         self.release()
 
     def is_leader(self):

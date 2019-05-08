@@ -34,7 +34,7 @@ class Solver(object):
         self.parameter_pointers = self.get_nn_module_parameter_pointers(self.net)
         self.loss_fn = nn.CrossEntropyLoss()
         self.sender_queues = sender_queues
-        self.sender_queues.setup(pending_work_queues.my_host, pending_work_queues.other_hosts)
+        self.sender_queues.setup(pending_work_queues.my_host, pending_work_queues.other_hosts, pending_work_queues.other_leaders)
         self.sender_queues.run()
         self.pending_work_queues = pending_work_queues
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
@@ -147,9 +147,13 @@ class Solver(object):
                     updates=epoch_weights,
                     update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
                 # TODO(ml): Set the synchronization clock cycle in command line
-                if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and self.curr_epoch % 2 == 0:
-                    print("Initiating Synchronization")
-                    self.local_synchronize(model_update.to_json())
+                if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
+                    if self.curr_epoch % 2 == 0:
+                        print("Initiating Local Synchronization")
+                        self.local_synchronize(model_update.to_json())
+                    if self.curr_epoch % 5 == 0:
+                        print("Initiating Inter-cluster non-blocking communication")
+                        self.local_synchronize(model_update.to_json())
                 else:     
                     # Enqueue local update to send to other hosts' queues
                     self.sender_queues.enqueue(model_update.to_json())
