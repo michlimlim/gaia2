@@ -24,28 +24,41 @@ class PendingWork(object):
         self.total_no_of_updates = 0
         self.min_queue_len = None
         self.k = max_qlen_ratio
+        self.leader = ""
+        self.frozen = False
 
-    def setup(self, my_host, other_hosts):
+    def setup(self, my_host, other_hosts, leader, other_leaders):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts
         self.my_host = my_host
         self.other_hosts = other_hosts
-        self.num_devices = 1 + len(other_hosts)
+        self.other_leaders = other_leaders
+        self.leader = leader
+        self.num_devices = 1 + len(other_hosts) + len(other_leaders)
         self.write()
         self.queues[my_host] = UpdateQueue()
-        for host in other_hosts:
+        for host in other_hosts + other_leaders:
             self.queues[host] = UpdateQueue()
         self.release()
+
+    def is_leader(self):
+        return self.my_host == self.leader
 
     def setup_connection_to_node(self, node):
         # :brief Connect to node so that we can also wake it up
         self.node = node
+    
+    def freeze_node(self):
+        self.frozen = True
 
     def enqueue(self, update: ModelUpdate, host):
         # :brief Add an update to corresponding queue of a given host.
         # :param update [ModelUpdate] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
+        # If the queue is frozen (during synchronization) and receive non-leader, do not enqueue:
+        if self.frozen and host != self.leader:
+            return
         self.write()
         if not host in self.queues:
             # Creates queue if none exists
@@ -58,7 +71,7 @@ class PendingWork(object):
             return
         queue = self.queues[host]
         if self.min_queue_len != None:
-            if len(queue) > self.k * self.min_queue_len:
+            if queue.len > self.k * self.min_queue_len:
                 self.release()
                 raise DevicePushbackError("could not enqueue new update")
         queue.enqueue(update)
@@ -66,7 +79,7 @@ class PendingWork(object):
         # Wake ml thread up if it's sleeping because it couldn't backprop
         # or aggregate
         with self.node.condition:
-            print("INCOMING UPDATE WAKE UP ML THREAD")
+            # "INCOMING UPDATE WAKE UP ML THREAD")
             self.node.condition.notify()
 
         self._update_min_and_max()
@@ -99,6 +112,24 @@ class PendingWork(object):
         self._update_min_and_max()
         self.release()
         return ret
+
+    def clear_all(self):
+        # Stop all enqueues from non-leader
+        self.freeze_node()
+        # Clear all queues
+        self.node.sender_queues.dequeue_every_queue()
+        self.dequeue_every_queue()
+
+    def dequeue_every_queue(self):
+        # :brief Clear every host's queue
+        # :return nothing
+        self.write()
+        for queue in self.queues:
+            self.total_no_of_updates -= self.queues[queue].len
+            self.queues[queue].clear()
+        self.release()
+        return
+
 
     def dequeue_random(self) -> ModelUpdate:
         # :brief Pop an update from one of the queues at random.

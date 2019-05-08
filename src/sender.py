@@ -1,6 +1,7 @@
 from threading import RLock, Event, Condition, Thread
 import time
 import requests
+import json
 
 from src.util import EmptyQueueError, DevicePushbackError
 from src.updatequeue import UpdateQueue
@@ -11,47 +12,62 @@ class Sender(object):
         self.lock = RLock()
         self.my_host = None
         self.other_hosts = None
+        self.other_leaders = None
         self.wait_times = {}
         self.last_sent_times = {}
         self.num_devices = -1
         self.last_sent_times = {}
         self.wait_times = {}
         self.host_locks = {}
+        # Includes both the queues for other_hosts and other_leaders
         self.queues = {}
         self.total_no_of_updates = 0 
         self.min_queue_len = None
         self.k = k
         self.condition = Condition()
 
-    def setup(self, my_host, other_hosts):
+    def setup(self, my_host, other_hosts, other_leaders):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts
         self.my_host = my_host
         self.other_hosts = other_hosts
-        self.num_devices = 1 + len(other_hosts)
+        self.other_leaders = other_leaders
+        self.num_devices = 1 + len(other_hosts) + len(other_leaders)
         self.write()
-        # self.queues[my_host] = UpdateQueue()
         self.wait_times[my_host] = .1
         self.last_sent_times[my_host] = 0
         self.host_locks[my_host] = RLock()
-        for host in other_hosts:
+        for host in other_hosts + other_leaders:
             self.queues[host] = UpdateQueue()
             self.wait_times[host] = .1
             self.last_sent_times[host] = 0
             self.host_locks[host] = RLock()
         self.release()
+    
+    def dequeue_every_queue(self):
+        # :brief Clear every host's queue
+        # :return nothing
+        self.write()
+        for queue in self.queues:
+            self.total_no_of_updates -= len(self.queues[queue])
+            self.queues[queue].clear()
+        self.release()
+        return
 
-    def enqueue(self, update):
-        # :brief Add an update to corresponding queue of a given host.
+    def enqueue(self, update, other_leaders = False):
+        # :brief Add an update to hosts in same cluster if False.
+        # Add the update to other_leaders if flag is set as True.
         # :param update [Object] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
-        for host in self.queues:
-            print("SEND TO", host)
+        queues = self.other_leaders if other_leaders else self.other_hosts 
+        
+        for host in queues:
+           #  print("SEND TO", host)
             self.write_host(host)
             queue = self.queues[host]
             if self.min_queue_len != None:
-                if len(queue) > self.k * self.min_queue_len:
+                if queue.len > self.k * self.min_queue_len:
                     self.release_host(host)
                     raise DevicePushbackError("could not enqueue new update")
             queue.enqueue(update)
@@ -61,7 +77,7 @@ class Sender(object):
         # Enqueuing notifies the sender thread
         with self.condition:
             self.condition.notify()
-            print("ML THREAD WOKE UP SENDER THREAD")
+            # print("ML THREAD WOKE UP SENDER THREAD")
     
     def run(self):
         # :brief Spawn a new thread and begin sending update requests to other devices
@@ -72,13 +88,13 @@ class Sender(object):
         # :brief Send updates to peers when possible.
         while True:
             if self.total_no_of_updates > 0:
-                for host in self.other_hosts:
+                for host in self.queues:
                     self._update_host(host)
             else:
                 with self.condition:
-                    print("SENDER THREAD SLEEPING")
+                    # print("SENDER THREAD SLEEPING")
                     self.condition.wait()
-                print("SENDER THREAD WOKE UP FROM ML THREAD")
+                # print("SENDER THREAD WOKE UP FROM ML THREAD")
     
     # TODO (GS): To update min_queue_len after each enqueue and dequeue
     def _update_min_and_max(self):
@@ -94,21 +110,21 @@ class Sender(object):
         queue = self.queues[host]
         update = None
         try:
-            update = queue.peek()
+            update = queue.dequeue()
+            self.total_no_of_updates -= 1
         except EmptyQueueError:
             self.release_host(host)
             return
-        res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
+        if 'CLEAR' in update:
+            res = requests.post("http://" + host + "/clear_all_queues", json={"sender": self.my_host, "epoch": update['epoch']})
+        else:
+            res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
         if res.status_code >= 400 and res.status_code < 500:
             self.wait_times[host] *= 2
             self.release_host(host)
             return
         self.last_sent_times[host] = time.time()
         self.wait_times[host] = max(0.1, self.wait_times[host] - .1)
-        self.release_host(host)
-        self.write_host(host)
-        queue.dequeue()
-        self.total_no_of_updates -= 1
         self._update_min_and_max()
         self.release_host(host)     
     # Call `read` before reading, and `release` after reading.
@@ -116,7 +132,7 @@ class Sender(object):
 
     def read_host(self, host):
         # :brief Read lock a host queue
-        print("READ HOST FOR HOST:", host)
+        # print("READ HOST FOR HOST:", host)
         self.host_locks[host].acquire(blocking=0)
 
     def write_host(self, host):
@@ -125,7 +141,7 @@ class Sender(object):
 
     def release_host(self, host):
         # :breif Release a lock on the host queue.
-        print("RELEASE HOST FOR HOST", host)
+        # print("RELEASE HOST FOR HOST", host)
         self.host_locks[host].release()
 
     def read(self):
