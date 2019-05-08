@@ -49,7 +49,7 @@ def clear_all_queues():
     return "Clear_all_queues is running"
 
 if __name__ == "__main__":
-    # Intialize my_host and other_hosts from command line
+    # Intialize my_host and other_hosts and other_leaders from command line
     # Example:
     # Open a terminal for each of the following commands and run them!
     # python main.py -me localhost:5000 -leader localhost:5000 -them localhost:5001 -otherleaders localhost:5002

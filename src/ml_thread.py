@@ -94,27 +94,32 @@ class Solver(object):
         return weights_after_epoch
 
     def aggregate_received_updates(self):
+        # :brief Aggregate items from pending work queues and updates the local model (parameter_pointers).
+        # :result go_backprop [Boolean] whether or not we can override fairness condition and go straight into backprop
+
         # dict<str, ModelUpdate> Maps host ip addr to its ModelUpdate object
         host_to_model_update = {}
 
         for host_id in self.pending_work_queues.other_hosts + self.pending_work_queues.other_leaders + [self.pending_work_queues.my_host]:
             # This should be a ModelUpdate object
             try:
-                # The dequeue function ensures model_update isn't None
                 model_update_dict = self.pending_work_queues.dequeue(host_id)
                 print('AGG FROM ', host_id)
+                if self.pending_work_queues.frozen and self.pending_work_queues.leader == host_id:
+                    print("Unfreezing pending work queues")
+                    self.pending_work_queues.frozen = False
+                    return True
                 model_update = ModelUpdate.from_dict(model_update_dict, host_id)
                 # Discard an unfair incoming model update
                 if not self.fairness_state.check_fairness_before_aggregation(model_update):
                     continue
                 host_to_model_update[host_id] = model_update
             except EmptyQueueError:
-                # print('empty for now', host_id)
                 continue
 
         if len(host_to_model_update) == 0:
             if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
-                return
+                return True
             else:
                 # print('Nothing to aggregate, and we cannot backprop')
                 # print(self.fairness_state.device_ip_addr_to_epoch_dict)
@@ -123,7 +128,7 @@ class Solver(object):
                     # print("ML THREAD SLEEPING")
                     self.condition.wait()
                 # print("ML THREAD WOKE UP")
-                return
+                return True
 
         weights_for_each_update = self.fairness_state.calculate_weights_for_each_host(host_to_model_update)
         self.fairness_state.update_internal_state_after_aggregation(self.ip_addr, host_to_model_update)
@@ -135,10 +140,12 @@ class Solver(object):
             ])
 
     def train(self):
+        go = False
         while self.curr_epoch < self.n_epochs:
             # print("START CURRENT EPOCH:", self.curr_epoch)
             # Check if we can backprop
-            if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
+            if self.fairness_state.check_fairness_before_backprop(self.ip_addr) or go:
+                print("Backprop")
                 epoch_weights = self.backprop_and_get_new_weights()
                 self.curr_epoch += 1
                 # Update internal fairness state
@@ -160,7 +167,7 @@ class Solver(object):
                 # Enqueue local update to my own receiving queue
                 self.pending_work_queues.enqueue(model_update, self.ip_addr)
             # If can't backprop, try to aggregate
-            self.aggregate_received_updates()
+            go = self.aggregate_received_updates()
 
     def evaluate(self):
         total = 0

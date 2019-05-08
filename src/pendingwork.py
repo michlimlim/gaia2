@@ -57,11 +57,8 @@ class PendingWork(object):
         # :param update [ModelUpdate] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
         # If the queue is frozen (during synchronization) and receive non-leader, do not enqueue:
-        if self.frozen:
-            if host == self.leader:
-                self.frozen = False
-            else:
-                return
+        if self.frozen and host != self.leader:
+            return
         self.write()
         if not host in self.queues:
             # Creates queue if none exists
