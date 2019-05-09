@@ -2,9 +2,7 @@
 from threading import RLock
 from src.updatequeue import UpdateQueue
 import random
-from src.util import DevicePushbackError
-from src.util import EmptyQueueError
-from src.util import ExtraFatal
+from src.util import DevicePushbackError, EmptyQueueError, ExtraFatal
 from src.update_metadata.model_update import ModelUpdate
 
 class PendingWork(object):
@@ -24,6 +22,7 @@ class PendingWork(object):
         self.total_no_of_updates = 0
         self.min_queue_len = None
         self.k = max_qlen_ratio
+        self.node = None
 
     def setup(self, my_host, other_hosts):
         # :brief Set up a queue for each host.
@@ -65,9 +64,10 @@ class PendingWork(object):
         self.total_no_of_updates += 1
         # Wake ml thread up if it's sleeping because it couldn't backprop
         # or aggregate
-        with self.node.condition:
-            print("INCOMING UPDATE WAKE UP ML THREAD")
-            self.node.condition.notify()
+        if self.node is not None:
+            with self.node.condition:
+                print("INCOMING UPDATE WAKE UP ML THREAD")
+                self.node.condition.notify()
 
         self._update_min_and_max()
         self.release()
@@ -97,6 +97,31 @@ class PendingWork(object):
 
         self.total_no_of_updates -= 1
         self._update_min_and_max()
+        self.release()
+        return ret
+
+    def peek(self, host: str) -> ModelUpdate:
+        # :brief Pop an update from the given host's queue
+        # :return [ModelUpdate] a dequeued ModelUpdate object
+        # :warning Raises an EmptyQueueError when no element could be returned.
+        self.read()
+        if self.total_no_of_updates == 0:
+            self.release()
+            raise EmptyQueueError("All queues empty")
+
+        ret = None
+        if not host in self.queues:
+            # Creates queue if none exists
+            # Will never push back for creating new queue
+            self.queues[host] = UpdateQueue()
+
+        if (self.queues[host].len > 0):
+            ret = self.queues[host].peek()
+
+        if ret == None:
+            self.release()
+            raise EmptyQueueError("could not pop from queue for host: " + host)
+
         self.release()
         return ret
 
