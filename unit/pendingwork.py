@@ -1,6 +1,7 @@
 from unit.unit import TestCalculator
 from src.pendingwork import PendingWork
 from src.util import EmptyQueueError
+from src.update_metadata.model_update import ModelUpdate
 
 def test_pending_work(calc):
     calc.context("test_pending_work")
