@@ -31,3 +31,6 @@ class UpdateReceiverState(object):
     # :return [UpdateMetadata]
     def export_copy_of_internal_state_for_sending(self) -> UpdateMetadata:
         raise ExtraFatal("Must implement this method")
+
+    def export_copy_of_internal_state(self) -> UpdateMetadata:
+        raise ExtraFatal("Must implement this method")

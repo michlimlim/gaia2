@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 from src.util import EmptyQueueError
 
-
 class UpdateQueue(object):
     # UpdateQueue encapsulates a queue of model updates.
     # This class is not thread safe.
@@ -23,7 +22,7 @@ class UpdateQueue(object):
         # :warning raises an EmptyQueueError if the queue is empty
         if self.len < 1:
             raise EmptyQueueError("could not pop from empty queue")
-        ret = self.queue[-1:]
+        ret = self.queue[0]
         self.queue = self.queue[1:]
         self.len -= 1
         return ret
@@ -34,9 +33,7 @@ class UpdateQueue(object):
         # :warning raises an EmptyQueueError if the queue is empty
         if self.len < 1:
             raise EmptyQueueError("could not peek on empty queue")
-        ret = self.queue[-1:]
-        self.queue = self.queue[1:]
-        return ret
+        return self.queue[0]
 
     def __len__(self):
         # :brief Get the length of the queue.

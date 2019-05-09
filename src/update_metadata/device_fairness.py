@@ -27,23 +27,42 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                 self.epoch_no_to_num_devices[epoch] += 1
         self.max_epoch_num = max(device_ip_addr_to_epoch_dict.values())
         self.min_epoch_num = min(device_ip_addr_to_epoch_dict.values())
-        """
-        (
-            self.max_epoch_device_ip_addr,
-            self.max_epoch_num
-        ) = max(device_ip_addr_to_epoch_dict.items(), key=lambda tup: tup[1])
-        (
-            self.min_epoch_device_ip_addr,
-            self.min_epoch_num
-        ) = min(device_ip_addr_to_epoch_dict.items(), key=lambda tup: tup[1])
-        """
 
     def export_copy_of_internal_state_for_sending(self):
         return DeviceFairnessUpdateMetadata(self.device_ip_addr_to_epoch_dict).__dict__
 
+    def export_copy_of_internal_state(self):
+        return DeviceFairnessUpdateMetadata(self.k, self.device_ip_addr_to_epoch_dict)
+    
+    @staticmethod
+    def fairness_for_one_vec(vector, thresh):
+        return (max(vector) - min(vector)) < thresh
+
+    # :param alphas [list[float]]
+    # :param vectors [list[list[float]]]
+    def fairness_fn(self, alphas, dicts, thresh):
+        temp = {}
+        for d, alpha in zip(dicts, alphas):
+            for key, val in d.items():
+                if key not in temp:
+                    temp[key] = val * alpha
+                else:
+                    temp[key] += val * alpha
+        return self.fairness_for_one_vec(temp.values(), thresh)
+
+    # :param host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
+    # :returns 
+    #    - is_fair [bool] whether our alphas satisfy f_v
+    #    - alphas [array<float>]
+    def get_fairness_and_alphas(self, metadata_list, weight_list):
+        equal_weight = 1.0 / float(len(metadata_list))
+        alphas = [equal_weight for i in range(len(metadata_list))]
+        is_fair = self.fairness_fn(alphas, metadata_list, self.k)
+        return is_fair, alphas
+
     # :brief Checks if we can backprop. Relies only on internal state.
-    def check_fairness_before_backprop(self, my_device_ip_addr) -> bool:
-        return (self.device_ip_addr_to_epoch_dict[my_device_ip_addr] - self.min_epoch_num) < self.k
+    def check_fairness_before_backprop(self) -> bool:
+        return self.fairness_fn([1], [self.epoch_no_to_num_devices], self.k)
 
     # :brief For device fairness, it's always safe to aggregate.
     def check_fairness_before_aggregation(self, model_update: ModelUpdate) -> bool:
@@ -108,14 +127,18 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     # :param: host_to_model_update [dict<str, ModelUpdate>] host_ip map to ModelUpdate
     # :param: my_device_ip_addr [str] my own device ip address. this param allows us to treat
     #     our own update differently if we want to
-    def update_internal_state_after_aggregation(self, my_device_ip_addr: str, host_to_model_update):
-        # We don't need to update our internal state for our own model update
-        # because we already updated our internal state during backprop
-        for host_ip_addr, model_update in host_to_model_update.items():
-            if host_ip_addr == my_device_ip_addr:
-                continue
-            df_metadata = DeviceFairnessUpdateMetadata(**(model_update.update_metadata))
-            self._update_internal_state_from_model_update_metadata(df_metadata)
+    def update_internal_state_after_aggregation(self, alphas_for_each_update, metadata_list, host_id_list):
+        new_metadata = {}
+        for idx, _ in enumerate(host_id_list):
+            alpha = alphas_for_each_update[idx]
+            incoming_metadata = metadata_list[idx]
+            print(incoming_metadata, 'incoming')
+            for key, val in incoming_metadata.items():
+                if key not in new_metadata:
+                    new_metadata[key] = alpha * val
+                else:
+                    new_metadata[key] += alpha * val
+        self.device_ip_addr_to_epoch_dict = new_metadata
 
     # brief: Calculate the weight we give to each host's updates.
     # param: host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
