@@ -51,13 +51,9 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                     temp[key] += val * alpha
         return self.fairness_for_one_vec(temp.values(), thresh)
 
-    # :param host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
     # :returns 
     #    - alphas [array<float>]
-    def get_alphas(self, metadata_list, host_id_list):
-        # First flatten the metadata_list to become a list of arrays
-        v = flatten_metadata(metadata_list, host_id_list)
-
+    def get_alphas(self, v):
         return get_weights(v)
 
     def flatten_metadata(self, metadata_list, host_id_list):
@@ -99,6 +95,18 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                     self.min_epoch_num = i
                     break
 
+    def _update_device_examples(self, device_ip_addr, example_num):
+        if ((device_ip_addr in self.device_ip_addr_to_epoch_dict)
+            and (self.device_ip_addr_to_epoch_dict[device_ip_addr] > example_num)):
+            raise ExtraFatal(
+                "example num should be monotonically increasing: incoming eg num {} \
+                from {} vs. stored eg num {}".format(
+                    example_num, 
+                    device_ip_addr,
+                    self.device_ip_addr_to_epoch_dict[device_ip_addr]
+                ))
+        self.device_ip_addr_to_epoch_dict[device_ip_addr] = example_num
+
     # :brief Update state for latest epoch_num for a given device
     # :param device_ip_addr [str] IP address of given device
     # :param epoch_num [int] latest epoch seen by device from device_ip_addr
@@ -134,7 +142,7 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     #     ahead and endlessly performing backprop even when we're in an unfair state (our updates dominate)
     def update_internal_state_after_backprop(self, device_ip_addr: str):
         epoch_num = self.device_ip_addr_to_epoch_dict[device_ip_addr]
-        self._update_device_epoch(device_ip_addr, epoch_num + 1)
+        self._update_device_examples(device_ip_addr, epoch_num + 1)
 
     # :param: host_to_model_update [dict<str, ModelUpdate>] host_ip map to ModelUpdate
     # :param: my_device_ip_addr [str] my own device ip address. this param allows us to treat
