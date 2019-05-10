@@ -96,10 +96,20 @@ def test_flatten_metadata(calc):
     ], ['127.0.0.1:5000', '127.0.0.1:5001', '127.0.0.1:5002', '127.0.0.1:5004'])
     calc.check(flattened == [[1, 3, 4, 0], [0, 0, 3, 1], [3, 0, 0, 0]])
 
+def test_update_internal_state_after_aggregation(calc):
+    state_1_d = {
+        '127.0.0.1:5000': 0,
+        '127.0.0.1:5001': 0,
+        '127.0.0.1:5002': 0
+    }
+    state_1 = DeviceFairnessReceiverState(2, state_1_d)
 
+    state_1.update_internal_state_after_aggregation([1,2,3], [[1, 3, 4, 0], [0, 0, 3, 1], [3, 0, 0, 0]], ['127.0.0.1:5000', '127.0.0.1:5001', '127.0.0.1:5002', '127.0.0.1:5004'])
+    calc.check(state_1.device_ip_addr_to_epoch_dict == {'127.0.0.1:5000': 10, '127.0.0.1:5001': 3, '127.0.0.1:5002': 10, '127.0.0.1:5004': 2})
 
 def add_tests(calc):
     calc.add_test(test_flatten_metadata)
+    calc.add_test(test_update_internal_state_after_aggregation)
     # calc.add_test(test_determine_fairness_given_internal_state)
     # calc.add_test(test_update_internal_state_after_backprop)
     # calc.add_test(test_update_internal_state_after_aggregation)

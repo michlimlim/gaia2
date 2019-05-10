@@ -124,7 +124,8 @@ class Solver(object):
 
         metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
         weight_list.append(self.parameter_pointers)
-        alphas = self.fairness_state.get_alphas(metadata_list, host_id_list)
+        flattened_metadata_list = self.fairness_state.flatten_metadata(metadata_list, host_id_list)
+        alphas = self.fairness_state.get_alphas(flattened_metadata_list)
 
         # Sanity check
         if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):
@@ -135,7 +136,7 @@ class Solver(object):
 
         self.fairness_state.update_internal_state_after_aggregation(
             alphas, 
-            metadata_list,
+            flattened_metadata_list,
             host_id_list)
         # Update weights by overwriting self.parameter_pointers
         for idx, _ in self.parameter_pointers.items():

@@ -139,17 +139,20 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     # :param: host_to_model_update [dict<str, ModelUpdate>] host_ip map to ModelUpdate
     # :param: my_device_ip_addr [str] my own device ip address. this param allows us to treat
     #     our own update differently if we want to
-    def update_internal_state_after_aggregation(self, alphas_for_each_update, metadata_list, host_id_list):
+    # Assumption: host_id and alphas are in same order as the hosts in each metadata
+    def update_internal_state_after_aggregation(self, alphas_for_each_update, flattened_metadata_list, host_id_list):
         new_metadata = {}
-        for idx, _ in enumerate(host_id_list):
-            alpha = alphas_for_each_update[idx]
-            incoming_metadata = metadata_list[idx]
-            print(incoming_metadata, 'incoming')
-            for key, val in incoming_metadata.items():
-                if key not in new_metadata:
-                    new_metadata[key] = alpha * val
+        new_v_list = []
+        for i, metadata in enumerate(flattened_metadata_list):
+            new_v_list.append([ele * alphas_for_each_update[i] for ele in metadata])
+
+        for idx, host in enumerate(host_id_list):
+            for new_v in new_v_list:
+                if host in new_metadata:
+                    new_metadata[host] += new_v[idx] 
                 else:
-                    new_metadata[key] += alpha * val
+                    new_metadata[host] = new_v[idx]
+
         self.device_ip_addr_to_epoch_dict = new_metadata
 
     # brief: Calculate the weight we give to each host's updates.
