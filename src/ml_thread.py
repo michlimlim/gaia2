@@ -68,11 +68,11 @@ class Solver(object):
         self.optimizer.zero_grad()
         loss.backward()
 
-        # Update weights on this minibatch's gradient
-        self.optimizer.step()
-
         # Get gradients for this minibatch
         minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
+
+        # Update weights on this minibatch's gradient
+        self.optimizer.step()
 
         # Update internal state after performing one minibatch backprop
         self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
@@ -99,8 +99,6 @@ class Solver(object):
         # (Cannot assume that this is the same/other_hosts all the time because metadata
         # could come from nodes outside the cluster)
         host_id_list = []
-        
-        models = []
 
         for host_id in self.pending_work_queues.other_hosts:
             # This should be a ModelUpdate object
@@ -130,7 +128,7 @@ class Solver(object):
         # Sanity check
         if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):
             print(len(alphas), 'alphas')
-            print(len(weight_list), 'weigts')
+            print(len(weight_list), 'weights')
             print(len(metadata_list), 'metadata')
             raise ValueError("Something very wrong with our alphas")
 
@@ -140,8 +138,11 @@ class Solver(object):
             host_id_list)
         # Update weights by overwriting self.parameter_pointers
         for idx, _ in self.parameter_pointers.items():
-            self.parameter_pointers[idx] = sum([
+            # PyTorch doesn’t allow in-place operations on variables you create directly
+            # (such as parameters of your model). Hence the verbose y = y + x syntax.
+            sum_updates = sum([
                 alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
+            self.parameter_pointers[idx] = self.parameter_pointers[idx] + sum_updates
         return
 
     def train(self):
