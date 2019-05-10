@@ -94,6 +94,10 @@ class Solver(object):
     def aggregate_received_updates(self):
         metadata_list = []
         weight_list = []
+
+        # The list of host_id's represented in all models
+        # (Cannot assume that this is the same/other_hosts all the time because metadata
+        # could come from nodes outside the cluster)
         host_id_list = []
         
         models = []
@@ -101,11 +105,12 @@ class Solver(object):
         for host_id in self.pending_work_queues.other_hosts:
             # This should be a ModelUpdate object
             try:
-                host_weight_list, host_metadata_list = self.pending_work_queues.empty_model_and_metadata_from(host_id)
+                host_weight_list, host_metadata_list, id_list = self.pending_work_queues.empty_model_and_metadata_from(host_id)
                 print('AGG FROM: ', host_id)
                 weight_list.extend(host_weight_list)
                 metadata_list.extend(host_metadata_list)
-                host_id_list.append(host_id)
+                host_id_list.extend(id_list)
+
             except EmptyQueueError:
                 print('EMPTY Q:', host_id)
                 continue
@@ -113,10 +118,13 @@ class Solver(object):
         # Return if empty
         if len(metadata_list) == 0:
             return
+        
+        # Remove duplicate host id's
+        host_id_list = set(host_id_list)
 
         metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
         weight_list.append(self.parameter_pointers)
-        alphas = self.fairness_state.get_alphas(metadata_list, weight_list)
+        alphas = self.fairness_state.get_alphas(metadata_list, host_id_list)
 
         # Sanity check
         if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):

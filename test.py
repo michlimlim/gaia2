@@ -12,7 +12,7 @@ def main():
     calc = TestCalculator()
     # test_unit.add_tests(calc)
     # ml_thread.add_tests(calc)
-    #device_fairness.add_tests(calc)
+    device_fairness.add_tests(calc)
     pendingwork.add_tests(calc)
     get_weights.add_tests(calc)
     #updatequeue.add_tests(calc)

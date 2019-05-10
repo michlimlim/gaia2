@@ -54,9 +54,23 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     # :param host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
     # :returns 
     #    - alphas [array<float>]
-    def get_alphas(self, metadata_list, weight_list):
-        print("metaadata list", metadata_list)
-        return get_weights(metadata_list)
+    def get_alphas(self, metadata_list, host_id_list):
+        # First flatten the metadata_list to become a list of arrays
+        v = flatten_metadata(metadata_list, host_id_list)
+
+        return get_weights(v)
+
+    def flatten_metadata(self, metadata_list, host_id_list):
+        v = []
+        for metadata in metadata_list:
+            v_i = []
+            for host_id in host_id_list:
+                if host_id in metadata:
+                    v_i.append(metadata[host_id])
+                else:
+                    v_i.append(0)
+            v.append(v_i)
+        return v
 
     # :brief Checks if we can backprop. Relies only on internal state.
     def check_fairness_before_backprop(self) -> bool:
