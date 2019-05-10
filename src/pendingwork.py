@@ -80,6 +80,7 @@ class PendingWork(object):
 
         weight_list = []
         metadata_list = []
+        id_list = []
 
         if not host in self.queues:
             # Creates queue if none exists
@@ -92,6 +93,7 @@ class PendingWork(object):
             model_update = ModelUpdate.from_dict(model_update_dict)
             weight_list.append(model_update_dict.updates)
             metadata_list.append(model_update_dict.update_metadata)
+            id_list.extend(model_update_dict.update_metadata.keys())
             
 
         if len(weight_list) == 0 or len(metadata_list) == 0:
@@ -101,7 +103,7 @@ class PendingWork(object):
 
         self._update_min_and_max()
         self.release()
-        return (weight_list, metadata_list)
+        return (weight_list, metadata_list, id_list)
 
     def dequeue(self, host: str) -> ModelUpdate:
         # :brief Pop an update from the given host's queue

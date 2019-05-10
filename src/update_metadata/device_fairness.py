@@ -1,6 +1,7 @@
 from src.util import ExtraFatal
 from src.update_metadata.update_fairness_interface import UpdateMetadata, UpdateReceiverState
 from src.update_metadata.model_update import ModelUpdate
+from src.get_weights import get_weights
 
 class DeviceFairnessUpdateMetadata(UpdateMetadata):
     # :brief Store metadata for an update to guarantee device-based fairness
@@ -50,15 +51,22 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                     temp[key] += val * alpha
         return self.fairness_for_one_vec(temp.values(), thresh)
 
-    # :param host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
     # :returns 
-    #    - is_fair [bool] whether our alphas satisfy f_v
     #    - alphas [array<float>]
-    def get_fairness_and_alphas(self, metadata_list, weight_list):
-        equal_weight = 1.0 / float(len(metadata_list))
-        alphas = [equal_weight for i in range(len(metadata_list))]
-        is_fair = self.fairness_fn(alphas, metadata_list, self.k)
-        return is_fair, alphas
+    def get_alphas(self, v):
+        return get_weights(v)
+
+    def flatten_metadata(self, metadata_list, host_id_list):
+        v = []
+        for metadata in metadata_list:
+            v_i = []
+            for host_id in host_id_list:
+                if host_id in metadata:
+                    v_i.append(metadata[host_id])
+                else:
+                    v_i.append(0)
+            v.append(v_i)
+        return v
 
     # :brief Checks if we can backprop. Relies only on internal state.
     def check_fairness_before_backprop(self) -> bool:
@@ -86,6 +94,18 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
                 if self.epoch_no_to_num_devices[i] > 0:
                     self.min_epoch_num = i
                     break
+
+    def _update_device_examples(self, device_ip_addr, example_num):
+        if ((device_ip_addr in self.device_ip_addr_to_epoch_dict)
+            and (self.device_ip_addr_to_epoch_dict[device_ip_addr] > example_num)):
+            raise ExtraFatal(
+                "example num should be monotonically increasing: incoming eg num {} \
+                from {} vs. stored eg num {}".format(
+                    example_num, 
+                    device_ip_addr,
+                    self.device_ip_addr_to_epoch_dict[device_ip_addr]
+                ))
+        self.device_ip_addr_to_epoch_dict[device_ip_addr] = example_num
 
     # :brief Update state for latest epoch_num for a given device
     # :param device_ip_addr [str] IP address of given device
@@ -122,22 +142,25 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     #     ahead and endlessly performing backprop even when we're in an unfair state (our updates dominate)
     def update_internal_state_after_backprop(self, device_ip_addr: str):
         epoch_num = self.device_ip_addr_to_epoch_dict[device_ip_addr]
-        self._update_device_epoch(device_ip_addr, epoch_num + 1)
+        self._update_device_examples(device_ip_addr, epoch_num + 1)
 
     # :param: host_to_model_update [dict<str, ModelUpdate>] host_ip map to ModelUpdate
     # :param: my_device_ip_addr [str] my own device ip address. this param allows us to treat
     #     our own update differently if we want to
-    def update_internal_state_after_aggregation(self, alphas_for_each_update, metadata_list, host_id_list):
+    # Assumption: host_id and alphas are in same order as the hosts in each metadata
+    def update_internal_state_after_aggregation(self, alphas_for_each_update, flattened_metadata_list, host_id_list):
         new_metadata = {}
-        for idx, _ in enumerate(host_id_list):
-            alpha = alphas_for_each_update[idx]
-            incoming_metadata = metadata_list[idx]
-            print(incoming_metadata, 'incoming')
-            for key, val in incoming_metadata.items():
-                if key not in new_metadata:
-                    new_metadata[key] = alpha * val
+        new_v_list = []
+        for i, metadata in enumerate(flattened_metadata_list):
+            new_v_list.append([ele * alphas_for_each_update[i] for ele in metadata])
+
+        for idx, host in enumerate(host_id_list):
+            for new_v in new_v_list:
+                if host in new_metadata:
+                    new_metadata[host] += new_v[idx] 
                 else:
-                    new_metadata[key] += alpha * val
+                    new_metadata[host] = new_v[idx]
+
         self.device_ip_addr_to_epoch_dict = new_metadata
 
     # brief: Calculate the weight we give to each host's updates.
