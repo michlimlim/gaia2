@@ -72,6 +72,37 @@ class PendingWork(object):
         self._update_min_and_max()
         self.release()
 
+    def empty_model_and_metadata_from(self, host: str):
+        self.write()
+        if self.total_no_of_updates == 0:
+            self.release()
+            raise EmptyQueueError("All queues empty")
+
+        weight_list = []
+        metadata_list = []
+
+        if not host in self.queues:
+            # Creates queue if none exists
+            # Will never push back for creating new queue
+            self.queues[host] = UpdateQueue()
+            self._update_min_and_max()
+
+        while (self.queues[host].len > 0):
+            model_update_dict = self.dequeue(host)
+            model_update = ModelUpdate.from_dict(model_update_dict)
+            weight_list.append(model_update_dict.updates)
+            metadata_list.append(model_update_dict.update_metadata)
+            
+
+        if len(weight_list) == 0 or len(metadata_list) == 0:
+            self.release()
+            raise EmptyQueueError("could not pop from queue for host: " + host)
+
+
+        self._update_min_and_max()
+        self.release()
+        return (weight_list, metadata_list)
+
     def dequeue(self, host: str) -> ModelUpdate:
         # :brief Pop an update from the given host's queue
         # :return [ModelUpdate] a dequeued ModelUpdate object

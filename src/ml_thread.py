@@ -97,16 +97,16 @@ class Solver(object):
         metadata_list = []
         weight_list = []
         host_id_list = []
+        
+        models = []
+
         for host_id in self.pending_work_queues.other_hosts:
             # This should be a ModelUpdate object
             try:
-                # The dequeue function ensures model_update isn't None
-                # Question: Why does dequeue return a list, instead of the item itself???
-                model_update_dict = self.pending_work_queues.peek(host_id)
+                host_weight_list, host_metadata_list = self.pending_work_queues.empty_model_and_metadata_from(host_id)
                 print('AGG FROM: ', host_id)
-                model_update = ModelUpdate.from_dict(model_update_dict)
-                metadata_list.append(model_update.update_metadata)
-                weight_list.append(model_update.updates)
+                weight_list.extend(host_weight_list)
+                metadata_list.extend(host_metadata_list)
                 host_id_list.append(host_id)
             except EmptyQueueError:
                 print('EMPTY Q:', host_id)
