@@ -69,7 +69,11 @@ class Solver(object):
         loss.backward()
 
         # Get gradients for this minibatch
-        minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
+        minibatch_updates = {}
+        for idx, params in self.parameter_pointers.items():
+            if params.grad is not None:
+                minibatch_updates[idx] = params.grad.clone()
+        print(minibatch_updates.keys())
 
         # Update weights on this minibatch's gradient
         self.optimizer.step()
@@ -142,6 +146,7 @@ class Solver(object):
             # (such as parameters of your model). Hence the verbose y = y + x syntax.
             sum_updates = sum([
                 alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
+            print(sum_updates)
             self.parameter_pointers[idx] = self.parameter_pointers[idx] + sum_updates
         return
 
