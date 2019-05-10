@@ -117,7 +117,7 @@ class Sender(object):
 
     def read_host(self, host):
         # :brief Read lock a host queue
-        print("READ HOST FOR HOST:", host)
+        # print("READ HOST FOR HOST:", host)
         self.host_locks[host].acquire(blocking=0)
 
     def write_host(self, host):
@@ -126,7 +126,7 @@ class Sender(object):
 
     def release_host(self, host):
         # :breif Release a lock on the host queue.
-        print("RELEASE HOST FOR HOST", host)
+        # print("RELEASE HOST FOR HOST", host)
         self.host_locks[host].release()
 
     def read(self):

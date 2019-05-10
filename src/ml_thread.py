@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from threading import Condition
+import traceback
+
 
 # Code-specific imports
 from src.update_metadata.model_update import ModelUpdate
@@ -65,18 +67,20 @@ class Solver(object):
 
         logits = self.net(images)
         loss = self.loss_fn(logits, labels)
+        # Get copy of weights before backprop
+        weights_before = {
+            idx: params.clone() for idx, params in self.parameter_pointers.items()
+        }
         self.optimizer.zero_grad()
         loss.backward()
-
-        # Get gradients for this minibatch
-        minibatch_updates = {}
-        for idx, params in self.parameter_pointers.items():
-            if params.grad is not None:
-                minibatch_updates[idx] = params.grad.clone()
-        print(minibatch_updates.keys())
-
         # Update weights on this minibatch's gradient
         self.optimizer.step()
+
+        # Get delta_W for this minibatch
+        minibatch_updates = {
+            idx: (params - weights_before[idx])
+            for idx, params in self.parameter_pointers.items()
+        }
 
         # Update internal state after performing one minibatch backprop
         self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
@@ -144,24 +148,27 @@ class Solver(object):
         for idx, _ in self.parameter_pointers.items():
             # PyTorch doesn’t allow in-place operations on variables you create directly
             # (such as parameters of your model). Hence the verbose y = y + x syntax.
+            # print(weight_list)
             sum_updates = sum([
                 alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
-            print(sum_updates)
-            self.parameter_pointers[idx] = self.parameter_pointers[idx] + sum_updates
+            self.parameter_pointers[idx].data = self.parameter_pointers[idx].data + sum_updates
+
+
         return
 
     def train(self):
         minibatches = list(self.train_loader)
         i = 0
         while i < len(minibatches): 
-            while self.pending_work_queues.total_no_of_updates > 0:
-                # Aggregate
-                self.aggregate_received_updates()
-
             # Check if we can backprop
             images, labels = minibatches[i]
             self.minibatch_backprop_and_update_weights(i, images, labels)
             i += 1
+            while self.pending_work_queues.total_no_of_updates > 0:
+                # Aggregate
+                self.aggregate_received_updates()
+
+
             
 
     def evaluate(self):
