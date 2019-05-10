@@ -91,8 +91,6 @@ class Solver(object):
         print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
         return
     
-    # Return if unfair
-    # Otherwise, recursively call yourself
     def aggregate_received_updates(self):
         metadata_list = []
         weight_list = []
@@ -118,7 +116,7 @@ class Solver(object):
 
         metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
         weight_list.append(self.parameter_pointers)
-        is_fair, alphas = self.fairness_state.get_fairness_and_alphas(metadata_list, weight_list)
+        alphas = self.fairness_state.get_alphas(metadata_list, weight_list)
 
         # Sanity check
         if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):
@@ -127,33 +125,28 @@ class Solver(object):
             print(len(metadata_list), 'metadata')
             raise ValueError("Something very wrong with our alphas")
 
-        if is_fair:
-            self.fairness_state.update_internal_state_after_aggregation(
-                alphas, 
-                metadata_list,
-                host_id_list)
-            # Update weights by overwriting self.parameter_pointers
-            for idx, _ in self.parameter_pointers.items():
-                self.parameter_pointers[idx] = sum([
-                    alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
-            # Actually dequeue
-            for host_id in host_id_list:
-                self.pending_work_queues.dequeue(host_id)
-            # try aggregating again!
-            return self.aggregate_received_updates()
+        self.fairness_state.update_internal_state_after_aggregation(
+            alphas, 
+            metadata_list,
+            host_id_list)
+        # Update weights by overwriting self.parameter_pointers
+        for idx, _ in self.parameter_pointers.items():
+            self.parameter_pointers[idx] = sum([
+                alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
+        return
 
     def train(self):
         minibatches = list(self.train_loader)
         i = 0
         while i < len(minibatches): 
-            # Try to aggregate
-            self.aggregate_received_updates()
+            while self.pending_work_queues.total_no_of_updates > 0:
+                # Aggregate
+                self.aggregate_received_updates()
 
             # Check if we can backprop
-            if self.fairness_state.check_fairness_before_backprop():
-                images, labels = minibatches[i]
-                self.minibatch_backprop_and_update_weights(i, images, labels)
-                i += 1
+            images, labels = minibatches[i]
+            self.minibatch_backprop_and_update_weights(i, images, labels)
+            i += 1
             
 
     def evaluate(self):

@@ -1,6 +1,7 @@
 from src.util import ExtraFatal
 from src.update_metadata.update_fairness_interface import UpdateMetadata, UpdateReceiverState
 from src.update_metadata.model_update import ModelUpdate
+from src.get_weights import get_weights
 
 class DeviceFairnessUpdateMetadata(UpdateMetadata):
     # :brief Store metadata for an update to guarantee device-based fairness
@@ -52,13 +53,10 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
 
     # :param host_to_model_update [dict<str, ModelUpdate>] dict that maps host_ip to ModelUpdate
     # :returns 
-    #    - is_fair [bool] whether our alphas satisfy f_v
     #    - alphas [array<float>]
-    def get_fairness_and_alphas(self, metadata_list, weight_list):
-        equal_weight = 1.0 / float(len(metadata_list))
-        alphas = [equal_weight for i in range(len(metadata_list))]
-        is_fair = self.fairness_fn(alphas, metadata_list, self.k)
-        return is_fair, alphas
+    def get_alphas(self, metadata_list, weight_list):
+        print("metaadata list", metadata_list)
+        return get_weights(metadata_list)
 
     # :brief Checks if we can backprop. Relies only on internal state.
     def check_fairness_before_backprop(self) -> bool:
