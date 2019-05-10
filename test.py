@@ -6,15 +6,17 @@ import unit.pendingwork as pendingwork
 import unit.updatequeue as updatequeue
 import unit.sender as sender
 import unit.update_metadata.device_fairness as device_fairness
+import unit.biased_data_partition as biased_data_partition
 
 def main():
     calc = TestCalculator()
-    # test_unit.add_tests(calc)
+    test_unit.add_tests(calc)
     # ml_thread.add_tests(calc)
     device_fairness.add_tests(calc)
     pendingwork.add_tests(calc)
-    #updatequeue.add_tests(calc)
+    updatequeue.add_tests(calc)
     sender.add_tests(calc)
+    biased_data_partition.add_tests(calc)
     calc.run()
 
 if __name__ == "__main__":
