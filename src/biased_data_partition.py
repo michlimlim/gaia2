@@ -13,10 +13,8 @@ class CustomizedTrainMNIST(Dataset):
         # Don't override method if TEST dataset. Only override if TRAIN.
         if 'train' in kwargs and kwargs['train'] is False:
             super().__init__(*args, **kwargs)
-        if 'label_set' in kwargs:
-            label_set = kwargs.pop('label_set')
-        if 'num_examples_max' in kwargs:
-            num_examples_max = kwargs.pop('num_examples_max')
+        if 'label_to_num_examples' in kwargs:
+            label_to_num_examples = kwargs.pop('label_to_num_examples')
         if 'transform' in kwargs:
             self.transform = kwargs['transform']
         else:
@@ -26,22 +24,24 @@ class CustomizedTrainMNIST(Dataset):
         else:
             self.target_transform = None
         self._mnist_dataset = datasets.MNIST(*args, **kwargs)
-        (self.data, self.targets) = self._trim_train_data(label_set, num_examples_max)
+        (self.data, self.targets) = self._trim_train_data(label_to_num_examples)
 
-
-    def _trim_train_data(self, label_set, num_examples_max):
+    # :param label_to_num_examples [dict<int, int>] Maps data label to number of examples desired
+    # :brief Creates a dataset with num_examples of each label, subject to MAX_NUM_EXAMPLES_PER_CLASS
+    def _trim_train_data(self, label_to_num_examples):
         label_indexes = {}
         for i in range(self._mnist_dataset.__len__()):
             example = self._mnist_dataset.__getitem__(i)
             label = example[1]
-            if label in label_set:
+            if label in label_to_num_examples:
                 if label not in label_indexes:
                     label_indexes[label] = [i]
                 else:
                     label_indexes[label].append(i)
         index_set = []
-        for label in label_set:
-            index_set.extend(label_indexes[label][:num_examples_max])
+        for label, num_examples in label_to_num_examples.items():
+            num_examples = min(num_examples, CustomizedTrainMNIST.MAX_NUM_EXAMPLES_PER_CLASS)
+            index_set.extend(label_indexes[label][:num_examples])
         new_dataset = [self._mnist_dataset.data[i] for i in index_set]
         new_targets = [self._mnist_dataset.targets[i] for i in index_set]
         return new_dataset, new_targets

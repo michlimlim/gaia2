@@ -10,8 +10,14 @@ def test_biased_data_partition(calc):
             del d[key]
         calc.check(len(d) == 0)
 
+    d_1 = {
+        0: 1000,
+        1: 2000,
+        2: 3000,
+        3: 4000
+    }
     calc.context("test biased data partitioning")
-    case_1_a = CustomizedTrainMNIST('../data', label_set=[0,1,2,3], num_examples_max=4000, train=True, download=True,
+    case_1_a = CustomizedTrainMNIST('../data', label_to_num_examples=d_1, train=True, download=True,
         transform=transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,))
@@ -24,7 +30,7 @@ def test_biased_data_partition(calc):
             d[label] = 1
         else:
             d[label] += 1
-    compare_dicts(calc, d, {0: 4000, 1: 4000, 2: 4000, 3: 4000})
+    compare_dicts(calc, d, d_1)
     test_2_dataloader = DataLoader(case_1_a, batch_size=64, shuffle=True)
     d = {}
     for _, labels in test_2_dataloader:
@@ -34,7 +40,7 @@ def test_biased_data_partition(calc):
                 d[label] = 1
             else:
                 d[label] += 1
-    compare_dicts(calc, d, {0: 4000, 1: 4000, 2: 4000, 3: 4000})
+    compare_dicts(calc, d, d_1)
 
 def add_tests(calc):
     calc.add_test(test_biased_data_partition)
