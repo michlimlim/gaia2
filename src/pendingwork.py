@@ -26,7 +26,7 @@ class PendingWork(object):
         self.frozen = False
         self.node = None
 
-    def setup(self, my_host, other_hosts, leader, other_leaders):
+    def setup(self, my_host, other_hosts, leader, other_leaders = []):
         # :brief Set up a queue for each host.
         # :param my_host [str] an id for this server
         # :param other_hosts [array<str>] the id of the other hosts

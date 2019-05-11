@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from threading import Condition
+import time
+from collections import deque
 
 # Code-specific imports
 from src.update_metadata.model_update import ModelUpdate
@@ -48,6 +50,7 @@ class Solver(object):
         if torch.cuda.is_available():
             self.net = self.net.cuda()
         self.condition = Condition()
+        self.ten_recent_loss_list = deque(10*[0.000], 10)
 
     # :brief nn.module.parameters() yields a generator of nn.Parameter, but unfortunately
     #   we can't use it to later the original, so we need to remember pointers for each
@@ -87,8 +90,8 @@ class Solver(object):
 
         # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
         minibatch_loss = float(loss.data) / len(images)
-        
-        print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
+        if minibatch_idx % 100 == 0:
+            print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
         return
     
     def aggregate_received_updates(self):
@@ -106,7 +109,7 @@ class Solver(object):
             # This should be a ModelUpdate object
             try:
                 host_weight_list, host_metadata_list, id_list = self.pending_work_queues.empty_model_and_metadata_from(host_id)
-                print('AGG FROM: ', host_id)
+                # print('AGG FROM: ', host_id)
                 # if self.pending_work_queues.frozen and self.pending_work_queues.leader == host_id:
                     # print("Unfreezing pending work queues")
                     # self.pending_work_queues.frozen = False
@@ -149,9 +152,10 @@ class Solver(object):
         return
 
     def train(self):
+        self.start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
-        while i < len(minibatches): 
+        while i < len(minibatches) and not self.convergent(): 
             # Check if we can backprop
             images, labels = minibatches[i]
             self.minibatch_backprop_and_update_weights(i, images, labels)
@@ -166,6 +170,14 @@ class Solver(object):
             while self.pending_work_queues.total_no_of_updates > 0:
                 # Aggregate
                 self.aggregate_received_updates()
+
+    # Convergence criteria: when our loss value changes by less than 2% over the course of 10 iterations
+    def convergent(self):
+        if self.ten_recent_loss_list[0] != 0.000 and self.ten_recent_loss_list[9] != 0.000:
+            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[9]
+            diff_percentage = diff / self.ten_recent_loss_list[9]
+            return abs(diff_percentage) < 0.020
+        return False
             
 
     def evaluate(self):
