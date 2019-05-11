@@ -18,10 +18,10 @@ from src.sender import Sender
 from src.util import EmptyQueueError, ExtraFatal
 
 # Create a function that creates nodes that hold partitioned training data
-def initialize_current_node(pending_work_queues, dataset='MNIST', dataset_dir='./data'):
+def initialize_current_node(pending_work_queues, dataset='MNIST', dataset_dir='./data', biased = False):
     curr_node_ip_addr = pending_work_queues.my_host
     other_nodes_ip_addrs = pending_work_queues.other_hosts
-    train_loader, test_loader = build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset, dataset_dir, 100)
+    train_loader, test_loader = build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset, dataset_dir, 100, biased)
     sender_queues = Sender(1000)
     return Solver(train_loader, test_loader, pending_work_queues, sender_queues, dataset, 10, 0.005)
 
@@ -86,12 +86,12 @@ class Solver(object):
             update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict)
         
         # Enqueue local update to send to other hosts' queues
-        self.sender_queues.enqueue(model_update.to_json())
+        # self.sender_queues.enqueue(model_update.to_json())
 
         # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
         minibatch_loss = float(loss.data) / len(images)
         self.ten_recent_loss_list.appendleft(minibatch_loss)
-        if minibatch_idx % 100 == 0:
+        if minibatch_idx % 50 == 0:
             print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
         return
     
@@ -174,9 +174,11 @@ class Solver(object):
 
         if self.convergent():
             print("Converge at Minibatch ", i)
-            print("Time Taken:", time.time()-start_time)
-            self.evaluate()
-            return
+        if i == len(minibatches):
+            print("Ran out of examples")
+        print("Time Taken:", time.time()-start_time)
+        self.evaluate()
+        return
 
 
     # Convergence criteria: when our loss value changes by less than 2% over the course of 10 iterations

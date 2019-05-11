@@ -72,12 +72,13 @@ if __name__ == "__main__":
             other_leaders.append(sys.argv[i])
     except ValueError:
         leaders_head = len(sys.argv)
+
     for i in range(6, leaders_head):
         other_hosts.append(sys.argv[i])
-
+    
     # Set up global queues with the hosts and leader
     pending_work_queues.setup(my_host, other_hosts, leader, other_leaders)
-    node = initialize_current_node(pending_work_queues, 'MNIST', './data')
+    node = initialize_current_node(pending_work_queues, 'MNIST', './data', True)
     pending_work_queues.setup_connection_to_node(node)
 
     port = my_host.split(":")[1]

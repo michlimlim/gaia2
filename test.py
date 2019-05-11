@@ -8,11 +8,13 @@ import unit.sender as sender
 import unit.get_weights as get_weights
 import unit.update_metadata.device_fairness as device_fairness
 import unit.biased_data_partition as biased_data_partition
+import unit.data_partition as data_partition
 
 def main():
     calc = TestCalculator()
     test_unit.add_tests(calc)
-    ml_thread.add_tests(calc)
+    data_partition.add_tests(calc)
+    # ml_thread.add_tests(calc)
     #  device_fairness.add_tests(calc)
     # updatequeue.add_tests(calc)
     # sender.add_tests(calc)
