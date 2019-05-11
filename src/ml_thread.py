@@ -152,10 +152,6 @@ class Solver(object):
         minibatches = list(self.train_loader)
         i = 0
         while i < len(minibatches): 
-            while self.pending_work_queues.total_no_of_updates > 0:
-                # Aggregate
-                self.aggregate_received_updates()
-
             # Check if we can backprop
             images, labels = minibatches[i]
             self.minibatch_backprop_and_update_weights(i, images, labels)
@@ -166,7 +162,10 @@ class Solver(object):
             #if self.curr_epoch % 2 == 0:
             #    print("Initiating Local Synchronization")
             #    self.local_synchronize(model_update.to_json())
-            #i += 1
+            i += 1
+            while self.pending_work_queues.total_no_of_updates > 0:
+                # Aggregate
+                self.aggregate_received_updates()
             
 
     def evaluate(self):
