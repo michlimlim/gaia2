@@ -86,12 +86,13 @@ class Solver(object):
             update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict)
         
         # Enqueue local update to send to other hosts' queues
-        # self.sender_queues.enqueue(model_update.to_json())
+        if minibatch_idx % 20 == 0:
+            self.sender_queues.enqueue(model_update.to_json())
 
         # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
         minibatch_loss = float(loss.data) / len(images)
         self.ten_recent_loss_list.appendleft(minibatch_loss)
-        if minibatch_idx % 50 == 0:
+        if minibatch_idx % 20 == 0:
             print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
         return
     
@@ -156,7 +157,8 @@ class Solver(object):
         start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
-        while i < len(minibatches) and not self.convergent(): 
+        #  and not self.convergent()
+        while i < len(minibatches): 
             # Check if we can backprop
             images, labels = minibatches[i]
             self.minibatch_backprop_and_update_weights(i, images, labels)

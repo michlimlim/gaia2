@@ -54,7 +54,10 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     # :returns 
     #    - alphas [array<float>]
     def get_alphas(self, v):
-        return get_weights(v)
+        # The Federated AVG
+        return [1.00/len(v)] * len(v)
+        # Our method
+        #return get_weights(v)
 
     def flatten_metadata(self, metadata_list, host_id_list):
         v = []
