@@ -120,7 +120,7 @@ class Solver(object):
                 host_id_list.extend(id_list)
 
             except EmptyQueueError:
-                print('EMPTY Q:', host_id)
+                # print('EMPTY Q:', host_id)
                 continue
 
         # Return if empty

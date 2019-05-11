@@ -8,6 +8,9 @@ import sys
 import requests
 
 app = Flask(__name__)
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 pending_work_queues = PendingWork(100)
 
