@@ -56,118 +56,118 @@ class Solver(object):
     def get_nn_module_parameter_pointers(self, nn_module):
         return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
-    def backprop_and_get_new_weights(self):
-        weights_before_epoch = {}
-        weights_after_epoch = {}
-        epoch_loss = 0
+    def minibatch_backprop_and_update_weights(self, minibatch_idx, images, labels):
+        images = Variable(images).view(-1, self.image_dim)
+        labels = Variable(labels)
+        if torch.cuda.is_available():
+            images = images.cuda()
+            labels = labels.cuda()
 
-        # Store a copy of weights before epoch
-        for idx, params in self.parameter_pointers.items():
-            weights_before_epoch[idx] = params.clone()
+        logits = self.net(images)
+        loss = self.loss_fn(logits, labels)
+        self.optimizer.zero_grad()
+        loss.backward()
 
-        # Train through minibatches
-        for images, labels in self.train_loader:
-            images = Variable(images).view(-1, self.image_dim)
-            labels = Variable(labels)
-            if torch.cuda.is_available():
-                images = images.cuda()
-                labels = labels.cuda()
+        # Update weights on this minibatch's gradient
+        self.optimizer.step()
 
-            logits = self.net(images)
-            loss = self.loss_fn(logits, labels)
-            self.optimizer.zero_grad()
-            loss.backward()
-            # Update weights on this minibatch's gradient
-            self.optimizer.step()
-            # Accumulate epoch loss across minibatches
-            epoch_loss += float(loss.data)
+        # Get gradients for this minibatch
+        minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
 
-        epoch_loss /= len(self.train_loader.dataset)
-        print(f"Epoch {self.curr_epoch} | loss: {epoch_loss:.4f}")
+        # Update internal state after performing one minibatch backprop
+        self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
 
-        # Restore current neural net's weights to weights before epoch
-        for idx, params in self.parameter_pointers.items():
-            weights_after_epoch[idx] = params.clone()
-            # print(params - weights_after_epoch[idx]) # This is the gradient
-            self.parameter_pointers[idx] = weights_before_epoch[idx]
+        # Wrap these minibatch gadients into a ModelUpdate and send
+        model_update = ModelUpdate(
+            updates=minibatch_updates,
+            update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict)
+        
+        # Enqueue local update to send to other hosts' queues
+        self.sender_queues.enqueue(model_update.to_json())
 
-        return weights_after_epoch
-
+        # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
+        minibatch_loss = float(loss.data) / len(images)
+        
+        print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
+        return
+    
     def aggregate_received_updates(self):
-        # :brief Aggregate items from pending work queues and updates the local model (parameter_pointers).
-        # :result go_backprop [Boolean] whether or not we can override fairness condition and go straight into backprop
+        metadata_list = []
+        weight_list = []
 
-        # dict<str, ModelUpdate> Maps host ip addr to its ModelUpdate object
-        host_to_model_update = {}
+        # The list of host_id's represented in all models
+        # (Cannot assume that this is the same/other_hosts all the time because metadata
+        # could come from nodes outside the cluster)
+        host_id_list = []
+        
+        models = []
 
-        for host_id in self.pending_work_queues.other_hosts + self.pending_work_queues.other_leaders + [self.pending_work_queues.my_host]:
+        for host_id in self.pending_work_queues.other_hosts:
             # This should be a ModelUpdate object
             try:
-                model_update_dict = self.pending_work_queues.dequeue(host_id)
-                print('AGG FROM ', host_id)
-                if self.pending_work_queues.frozen and self.pending_work_queues.leader == host_id:
-                    print("Unfreezing pending work queues")
-                    self.pending_work_queues.frozen = False
-                    return True
-                model_update = ModelUpdate.from_dict(model_update_dict, host_id)
-                # Discard an unfair incoming model update
-                if not self.fairness_state.check_fairness_before_aggregation(model_update):
-                    continue
-                host_to_model_update[host_id] = model_update
+                host_weight_list, host_metadata_list, id_list = self.pending_work_queues.empty_model_and_metadata_from(host_id)
+                print('AGG FROM: ', host_id)
+                # if self.pending_work_queues.frozen and self.pending_work_queues.leader == host_id:
+                    # print("Unfreezing pending work queues")
+                    # self.pending_work_queues.frozen = False
+                    # return True
+                weight_list.extend(host_weight_list)
+                metadata_list.extend(host_metadata_list)
+                host_id_list.extend(id_list)
+
             except EmptyQueueError:
+                print('EMPTY Q:', host_id)
                 continue
 
-        if len(host_to_model_update) == 0:
-            if self.fairness_state.check_fairness_before_backprop(self.ip_addr):
-                return True
-            else:
-                # print('Nothing to aggregate, and we cannot backprop')
-                # print(self.fairness_state.device_ip_addr_to_epoch_dict)
-                # print(self.fairness_state.max_epoch_num, self.fairness_state.min_epoch_num, self.fairness_state.k)
-                with self.condition:
-                    # print("ML THREAD SLEEPING")
-                    self.condition.wait()
-                # print("ML THREAD WOKE UP")
-                return True
+        # Return if empty
+        if len(metadata_list) == 0:
+            return
+        
+        # Remove duplicate host id's
+        host_id_list = set(host_id_list)
 
-        weights_for_each_update = self.fairness_state.calculate_weights_for_each_host(host_to_model_update)
-        self.fairness_state.update_internal_state_after_aggregation(self.ip_addr, host_to_model_update)
+        metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
+        weight_list.append(self.parameter_pointers)
+        flattened_metadata_list = self.fairness_state.flatten_metadata(metadata_list, host_id_list)
+        alphas = self.fairness_state.get_alphas(flattened_metadata_list)
+
+        # Sanity check
+        if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):
+            print(len(alphas), 'alphas')
+            print(len(weight_list), 'weights')
+            print(len(metadata_list), 'metadata')
+            raise ValueError("Something very wrong with our alphas")
+
+        self.fairness_state.update_internal_state_after_aggregation(
+            alphas, 
+            flattened_metadata_list,
+            host_id_list)
         # Update weights by overwriting self.parameter_pointers
         for idx, _ in self.parameter_pointers.items():
             self.parameter_pointers[idx] = sum([
-                host_to_model_update[host].updates[idx] * weights_for_each_update[host]
-                for host in host_to_model_update.keys()
-            ])
+                alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
+        return
 
     def train(self):
-        go = False
-        while self.curr_epoch < self.n_epochs:
-            # print("START CURRENT EPOCH:", self.curr_epoch)
+        minibatches = list(self.train_loader)
+        i = 0
+        while i < len(minibatches): 
+            while self.pending_work_queues.total_no_of_updates > 0:
+                # Aggregate
+                self.aggregate_received_updates()
+
             # Check if we can backprop
-            if self.fairness_state.check_fairness_before_backprop(self.ip_addr) or go:
-                print("Backprop")
-                epoch_weights = self.backprop_and_get_new_weights()
-                self.curr_epoch += 1
-                # Update internal fairness state
-                self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
-                model_update = ModelUpdate(
-                    updates=epoch_weights,
-                    update_metadata=self.fairness_state.export_copy_of_internal_state_for_sending())
-                # TODO(ml): Set the synchronization clock cycle in command line
-                if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
-                    if self.curr_epoch % 5 == 0:
-                        print("Initiating Inter-cluster non-blocking communication")
-                        self.sender_queues.enqueue(model_update.to_json(), True)
-                    if self.curr_epoch % 2 == 0:
-                        print("Initiating Local Synchronization")
-                        self.local_synchronize(model_update.to_json())
-                else:     
-                    # Enqueue local update to send to other hosts (in the cluster)' queues
-                    self.sender_queues.enqueue(model_update.to_json())
-                # Enqueue local update to my own receiving queue
-                self.pending_work_queues.enqueue(model_update, self.ip_addr)
-            # If can't backprop, try to aggregate
-            go = self.aggregate_received_updates()
+            images, labels = minibatches[i]
+            self.minibatch_backprop_and_update_weights(i, images, labels)
+            #if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
+            #if self.curr_epoch % 5 == 0:
+            #    print("Initiating Inter-cluster non-blocking communication")
+            #    self.sender_queues.enqueue(model_update.to_json(), True)
+            #if self.curr_epoch % 2 == 0:
+            #    print("Initiating Local Synchronization")
+            #    self.local_synchronize(model_update.to_json())
+            #i += 1
+            
 
     def evaluate(self):
         total = 0

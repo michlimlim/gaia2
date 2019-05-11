@@ -6,7 +6,7 @@ class ModelUpdate(object):
         # :brief Store a model update sent by a device from its local data
         # :param updates [dict<int, torch.tensor>] maps the int i-th module of the network to the 
         #     gradient update. Only int needed because all devices have same network arch
-        # :param update_metadata [dict] user-defined UpdateMetadata object in __dict__ form
+        # :param update_metadata [dict] arbitrary dict
         self.updates = updates
         self.update_metadata = update_metadata
 
@@ -18,7 +18,7 @@ class ModelUpdate(object):
         })
 
     @staticmethod
-    def from_dict(d, sender):
+    def from_dict(d):
         # :brief Converts dict version of model update into an object form
         model_update_obj = d
         model_update_obj.updates = {k: torch.Tensor(v) for k,v in model_update_obj.updates.items()}

@@ -2,6 +2,7 @@ from unit.unit import TestCalculator
 from src.pendingwork import PendingWork
 from src.util import EmptyQueueError
 from src.ml_thread import initialize_current_node   
+from src.update_metadata.model_update import ModelUpdate
 
 def test_pending_work(calc):
     calc.context("test_pending_work")
@@ -32,22 +33,34 @@ def test_pending_work(calc):
         print("queues after 3 things are added", pending_work_queues)
         return
 
+    # Testing if peek works! Multiple peeks should return same item
+    for _ in range(2):
+        item = pending_work_queues.peek('localhost:5000')
+        calc.check(pending_work_queues.get_total_no_of_updates() == 3)
+        calc.check(item == '5000 update')
+    for _ in range(2):
+        item = pending_work_queues.peek('localhost:5001')
+        calc.check(pending_work_queues.get_total_no_of_updates() == 3)
+        calc.check(item == '5001 update')
+
     # Testing if dequeue works
-    pending_work_queues.dequeue_random()
+    pending_work_queues.dequeue('localhost:5000')
     check = pending_work_queues.get_total_no_of_updates() == 3
-    pending_work_queues.dequeue_random()
+    pending_work_queues.dequeue('localhost:5000')
     check = pending_work_queues.get_total_no_of_updates() == 2
+    calc.check(check)
     if not check:
-        calc.check(False)
         print("queues after 1 item removed", pending_work_queues)
         return
-    pending_work_queues.dequeue_random()
+
+    pending_work_queues.dequeue('localhost:5001')
     check = pending_work_queues.get_total_no_of_updates() == 1
+    calc.check(check)
     if not check:
-        calc.check(False)
         print("queues after 1 item removed", pending_work_queues)
         return
-    pending_work_queues.dequeue_random()
+
+    pending_work_queues.dequeue('localhost:5001')
     check = pending_work_queues.get_total_no_of_updates() == 0
     if not check:
         calc.check(False)
@@ -57,7 +70,7 @@ def test_pending_work(calc):
 
     # Testing if dequeue works when queue empty
     try:
-        item = pending_work_queues.dequeue_random()
+        item = pending_work_queues.dequeue('localhost:5000')
         calc.check(False)
     except EmptyQueueError:
         calc.check(True)
