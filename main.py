@@ -20,7 +20,7 @@ class MlThread(object):
         t.start()
     def _actually_run(self):
         self.node.train()
-        self.node.evaluate()
+        # self.node.evaluate()
 
 @app.route("/")
 def hello():

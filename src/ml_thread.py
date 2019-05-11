@@ -50,7 +50,7 @@ class Solver(object):
         if torch.cuda.is_available():
             self.net = self.net.cuda()
         self.condition = Condition()
-        self.ten_recent_loss_list = deque(10*[0.000], 10)
+        self.ten_recent_loss_list = deque(100*[0.000], 100)
 
     # :brief nn.module.parameters() yields a generator of nn.Parameter, but unfortunately
     #   we can't use it to later the original, so we need to remember pointers for each
@@ -90,6 +90,7 @@ class Solver(object):
 
         # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
         minibatch_loss = float(loss.data) / len(images)
+        self.ten_recent_loss_list.appendleft(minibatch_loss)
         if minibatch_idx % 100 == 0:
             print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
         return
@@ -152,7 +153,7 @@ class Solver(object):
         return
 
     def train(self):
-        self.start_time = time.time()
+        start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
         while i < len(minibatches) and not self.convergent(): 
@@ -171,12 +172,19 @@ class Solver(object):
                 # Aggregate
                 self.aggregate_received_updates()
 
+        if self.convergent():
+            print("Converge at Minibatch ", i)
+            print("Time Taken:", time.time()-start_time)
+            self.evaluate()
+            return
+
+
     # Convergence criteria: when our loss value changes by less than 2% over the course of 10 iterations
     def convergent(self):
-        if self.ten_recent_loss_list[0] != 0.000 and self.ten_recent_loss_list[9] != 0.000:
-            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[9]
-            diff_percentage = diff / self.ten_recent_loss_list[9]
-            return abs(diff_percentage) < 0.020
+        if self.ten_recent_loss_list[0] != 0.0000 and self.ten_recent_loss_list[99] != 0.0000:
+            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[99]
+            diff_percentage = diff / self.ten_recent_loss_list[99]
+            return abs(diff_percentage) < 0.0200
         return False
             
 
