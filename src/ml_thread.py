@@ -130,7 +130,7 @@ class Solver(object):
         # Sanity check
         if (len(alphas) != len(weight_list)) or (len(weight_list) != len(metadata_list)):
             print(len(alphas), 'alphas')
-            print(len(weight_list), 'weigts')
+            print(len(weight_list), 'weights')
             print(len(metadata_list), 'metadata')
             raise ValueError("Something very wrong with our alphas")
 

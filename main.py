@@ -32,10 +32,10 @@ def receive_update():
     sender = content['sender']
     update = content['update']
     # update is a [json_str]
-    print(sender)
+    # print(sender)
     # print(json.loads(update[0])['updates'])
     pending_work_queues.enqueue(ModelUpdate(**json.loads(update)), sender)
-    print(pending_work_queues)
+    # print(pending_work_queues)
     return "Send update is running"
 
 if __name__ == "__main__":

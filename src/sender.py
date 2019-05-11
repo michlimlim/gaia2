@@ -47,7 +47,7 @@ class Sender(object):
         # :param update [Object] a model update that needs to be processed
         # :param host [str] the id for the host that generated the update
         for host in self.queues:
-            print("SEND TO", host)
+            # print("SEND TO", host)
             self.write_host(host)
             queue = self.queues[host]
             if self.min_queue_len != None:
@@ -61,7 +61,7 @@ class Sender(object):
         # Enqueuing notifies the sender thread
         with self.condition:
             self.condition.notify()
-            print("ML THREAD WOKE UP SENDER THREAD")
+            # print("ML THREAD WOKE UP SENDER THREAD")
     
     def run(self):
         # :brief Spawn a new thread and begin sending update requests to other devices
@@ -76,9 +76,9 @@ class Sender(object):
                     self._update_host(host)
             else:
                 with self.condition:
-                    print("SENDER THREAD SLEEPING")
+                    # print("SENDER THREAD SLEEPING")
                     self.condition.wait()
-                print("SENDER THREAD WOKE UP FROM ML THREAD")
+                # print("SENDER THREAD WOKE UP FROM ML THREAD")
     
     # TODO (GS): To update min_queue_len after each enqueue and dequeue
     def _update_min_and_max(self):
@@ -117,7 +117,7 @@ class Sender(object):
 
     def read_host(self, host):
         # :brief Read lock a host queue
-        print("READ HOST FOR HOST:", host)
+        # print("READ HOST FOR HOST:", host)
         self.host_locks[host].acquire(blocking=0)
 
     def write_host(self, host):
@@ -126,7 +126,7 @@ class Sender(object):
 
     def release_host(self, host):
         # :breif Release a lock on the host queue.
-        print("RELEASE HOST FOR HOST", host)
+        # print("RELEASE HOST FOR HOST", host)
         self.host_locks[host].release()
 
     def read(self):

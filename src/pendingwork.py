@@ -66,7 +66,7 @@ class PendingWork(object):
         # or aggregate
         if self.node is not None:
             with self.node.condition:
-                print("INCOMING UPDATE WAKE UP ML THREAD")
+                # print("INCOMING UPDATE WAKE UP ML THREAD")
                 self.node.condition.notify()
 
         self._update_min_and_max()
