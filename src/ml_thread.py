@@ -61,9 +61,6 @@ class Solver(object):
 
     def minibatch_backprop_and_update_weights(self, minibatches, idx, freq):
         self.net.train()
-        self.weights_before = {
-            idx: params.clone() for idx, params in self.parameter_pointers.items()
-        }
 
         j = idx
 
@@ -87,22 +84,15 @@ class Solver(object):
         self.optimizer.step()
         self.optimizer.zero_grad()
 
-        # Get delta_W for this minibatch
-        self.minibatch_updates = {
-            idx: (params - self.weights_before[idx]) for idx, params in self.parameter_pointers.items()
-        }
-
-        # Reverse internal state change
-        for idx, _ in self.parameter_pointers.items():
-            self.parameter_pointers[idx].data = self.weights_before[idx]
-        # Update metadata sent
-        self.update_metadata = self.fairness_state.update_after_backprop(self.ip_addr, freq)
+        # Update metadata
+        self.fairness_state.update_internal_state_after_backprop(self.ip_addr, freq)
         # Send out the model update to other hosts' queues
         # if self.ip_addr == 'localhost:5000':
         #     time.sleep(1)
+        minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
         self.sender_queues.enqueue(ModelUpdate(
-            updates=self.minibatch_updates,
-            update_metadata=self.update_metadata).to_json())
+            updates=minibatch_updates,
+            update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict).to_json())
 
         print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
         self.evaluate_matrix()
@@ -138,13 +128,14 @@ class Solver(object):
                 continue
         
         # Remove duplicate host id's
-        if self.minibatch_updates != None:
-            metadata_list.append(self.update_metadata)
-            weight_list.append(self.minibatch_updates)
-            host_id_list.extend(self.update_metadata.keys())
+        # metadata_list.append(self.update_metadata)
+        # weight_list.append(self.minibatch_updates)
+        metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
+        weight_list.append(self.parameter_pointers)
+        host_id_list.extend(self.fairness_state.device_ip_addr_to_epoch_dict.keys())
         host_id_list = set(host_id_list)
-        self.minibatch_updates = None
-        self.update_metadata = None
+        # self.minibatch_updates = None
+        # self.update_metadata = None
         flattened_metadata_list = self.fairness_state.flatten_metadata(metadata_list, host_id_list)
         alphas = self.fairness_state.get_alphas(flattened_metadata_list)
 
@@ -168,7 +159,7 @@ class Solver(object):
                 alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
             #print("sum updates for", idx, sum_updates)
             #print("parameterpointers for", idx, self.parameter_pointers[idx].data)
-            self.parameter_pointers[idx].data = self.parameter_pointers[idx].data + sum_updates
+            self.parameter_pointers[idx].data = sum_updates
             # print("combo", idx, self.parameter_pointers[idx].data)
         return
 

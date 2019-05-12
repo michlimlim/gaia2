@@ -145,11 +145,11 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     # :brief Updates our internal state after we perform backprop.
     #     We do this because we don't want to perform too much wasted work by rushing
     #     ahead and endlessly performing backprop even when we're in an unfair state (our updates dominate)
-    def update_internal_state_after_backprop(self, device_ip_addr: str):
+    def update_internal_state_after_backprop(self, device_ip_addr: str, number_to_add:int):
         if device_ip_addr not in self.device_ip_addr_to_epoch_dict:
                 self.device_ip_addr_to_epoch_dict[device_ip_addr ] = 0
         epoch_num = self.device_ip_addr_to_epoch_dict[device_ip_addr]
-        self._update_device_examples(device_ip_addr, epoch_num + 1)
+        self._update_device_examples(device_ip_addr, epoch_num + number_to_add)
 
     def update_after_backprop(self, device_ip_addr: str, number_to_add:int):
         metadata = self.device_ip_addr_to_epoch_dict
@@ -170,10 +170,7 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
 
         for idx, host in enumerate(host_id_list):
             for new_v in new_v_list:
-                if host in new_metadata:
-                    new_metadata[host] += new_v[idx] 
-                else:
-                    new_metadata[host] = new_v[idx]
+                new_metadata[host] = new_v[idx]
 
         self.device_ip_addr_to_epoch_dict = new_metadata
 
