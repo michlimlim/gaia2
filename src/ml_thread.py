@@ -60,7 +60,7 @@ class Solver(object):
         return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
     def minibatch_backprop_and_update_weights(self, minibatches, idx, freq):
-        
+        self.net.train()
         self.weights_before = {
             idx: params.clone() for idx, params in self.parameter_pointers.items()
         }
@@ -98,14 +98,14 @@ class Solver(object):
         # Update metadata sent
         self.update_metadata = self.fairness_state.update_after_backprop(self.ip_addr, freq)
         # Send out the model update to other hosts' queues
-        if self.ip_addr == 'localhost:5000':
-            time.sleep(1)
+        # if self.ip_addr == 'localhost:5000':
+        #     time.sleep(1)
         self.sender_queues.enqueue(ModelUpdate(
             updates=self.minibatch_updates,
             update_metadata=self.update_metadata).to_json())
 
         print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
-        self.evaluate()
+        self.evaluate_matrix()
 
         return j
     
@@ -210,19 +210,21 @@ class Solver(object):
             
 
     def evaluate(self):
-        # total = 0
-        # correct = 0
-        # self.net.eval()
-        # for images, labels in self.test_loader:
-        #     images = Variable(images).view(-1, self.image_dim)
-        #     if torch.cuda.is_available():
-        #         images = images.cuda()
-        #     logits = self.net(images)
-        #     _, predicted = torch.max(logits.data, 1)
-        #     total += labels.size(0)
-        #     correct += (predicted.cpu() == labels).sum()
-        # print(f'Accuracy: {100 * correct / total:.2f}%')
-
+        total = 0
+        correct = 0
+        self.net.eval()
+        for images, labels in self.test_loader:
+            images = Variable(images).view(-1, self.image_dim)
+            if torch.cuda.is_available():
+                images = images.cuda()
+            logits = self.net(images)
+            _, predicted = torch.max(logits.data, 1)
+            total += labels.size(0)
+            correct += (predicted.cpu() == labels).sum()
+        print(f'Accuracy: {100 * correct / total:.2f}%')
+        
+    def evaluate_matrix(self):
+        self.net.eval()
         for images, labels in self.test_loader:
             label_to_correct = {0: [], 1: [], 2: [], 3:[], 4: [], 5: [], 6: [], 7: [], 8:[], 9: []}
             images = Variable(images).view(-1, self.image_dim)
@@ -235,8 +237,8 @@ class Solver(object):
                 label_to_correct[labels[idx].item()].append((labels[idx] == predicted_tensor[idx]).item())
         label_to_accuracy = {0: 0, 1: 0, 2: 0, 3:0, 4: 0, 5: 0, 6: 0, 7: 0, 8:0 , 9: 0}
         for label in label_to_correct: 
-            label_to_accuracy[label] = sum(label_to_correct[label])/len(label_to_correct[label])
-        print(label_to_accuracy)
+            label_to_accuracy[label] = round(sum(label_to_correct[label])/len(label_to_correct[label]), 2)
+        print("ACCURACY", label_to_accuracy)
     
     def local_synchronize(self, update):
         # :brief Synchronize all devices in the cluster with an update.

@@ -74,31 +74,7 @@ def build_dataset_loader(curr_node_ip_addr, other_nodes_ip_addrs, dataset='MNIST
             8: 5400,
             9: 5400,
         }
-        # list_of_dicts = partition_dict(no_of_nodes)
-        list_of_dicts = [
-            {
-                0: 5400,
-                1: 5400,
-                2: 5400,
-                3: 5400,
-                4: 5400,
-            },
-            {
-                2: 5400,
-                3: 5400,
-                4: 5400,
-                5: 5400,
-                6: 5400,
-            },
-            {
-                5: 5400,
-                6: 5400,
-                7: 5400,
-                8: 5400,
-                9: 5400
-            },
-                
-            ]
+        list_of_dicts = partition_dict(no_of_nodes)
         case_1_a = CustomizedTrainMNIST('../data', label_to_num_examples=list_of_dicts[self_idx], train=True, download=True,
         transform=transforms.ToTensor())
         train_loader = torch.utils.data.DataLoader(case_1_a, batch_size=batch_size, shuffle=True)
