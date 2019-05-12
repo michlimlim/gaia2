@@ -60,6 +60,8 @@ class Solver(object):
         return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
     def minibatch_backprop_and_update_weights(self, minibatches, idx, freq):
+        self.evaluate_matrix()
+        
         self.net.train()
 
         j = idx
@@ -95,7 +97,6 @@ class Solver(object):
             update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict).to_json())
 
         print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
-        self.evaluate_matrix()
 
         return j
     
@@ -168,7 +169,8 @@ class Solver(object):
         start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
-        while i < len(minibatches) and not self.convergent(): 
+        while i < len(minibatches):
+        # and not self.convergent() 
             # Check if we can backprop
             i = self.minibatch_backprop_and_update_weights(minibatches, i, freq)
                 #if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
