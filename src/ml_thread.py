@@ -98,6 +98,8 @@ class Solver(object):
         # Update metadata sent
         self.update_metadata = self.fairness_state.update_after_backprop(self.ip_addr, freq)
         # Send out the model update to other hosts' queues
+        if self.ip_addr == 'localhost:5000':
+            time.sleep(1)
         self.sender_queues.enqueue(ModelUpdate(
             updates=self.minibatch_updates,
             update_metadata=self.update_metadata).to_json())
@@ -185,7 +187,7 @@ class Solver(object):
                 #if self.curr_epoch % 2 == 0:
                 #    print("Initiating Local Synchronization")
                 #    self.local_synchronize(model_update.to_json())
-            while self.pending_work_queues.total_no_of_updates > 0 or self.minibatch_updates != None:
+            while self.pending_work_queues.total_no_of_updates > 0:
                 # Aggregate
                 self.aggregate_received_updates()
 
@@ -208,18 +210,33 @@ class Solver(object):
             
 
     def evaluate(self):
-        total = 0
-        correct = 0
-        self.net.eval()
+        # total = 0
+        # correct = 0
+        # self.net.eval()
+        # for images, labels in self.test_loader:
+        #     images = Variable(images).view(-1, self.image_dim)
+        #     if torch.cuda.is_available():
+        #         images = images.cuda()
+        #     logits = self.net(images)
+        #     _, predicted = torch.max(logits.data, 1)
+        #     total += labels.size(0)
+        #     correct += (predicted.cpu() == labels).sum()
+        # print(f'Accuracy: {100 * correct / total:.2f}%')
+
         for images, labels in self.test_loader:
+            label_to_correct = {0: [], 1: [], 2: [], 3:[], 4: [], 5: [], 6: [], 7: [], 8:[], 9: []}
             images = Variable(images).view(-1, self.image_dim)
             if torch.cuda.is_available():
                 images = images.cuda()
             logits = self.net(images)
             _, predicted = torch.max(logits.data, 1)
-            total += labels.size(0)
-            correct += (predicted.cpu() == labels).sum()
-        print(f'Accuracy: {100 * correct / total:.2f}%')
+            predicted_tensor = predicted.cpu()
+            for idx in range(100):
+                label_to_correct[labels[idx].item()].append((labels[idx] == predicted_tensor[idx]).item())
+        label_to_accuracy = {0: 0, 1: 0, 2: 0, 3:0, 4: 0, 5: 0, 6: 0, 7: 0, 8:0 , 9: 0}
+        for label in label_to_correct: 
+            label_to_accuracy[label] = sum(label_to_correct[label])/len(label_to_correct[label])
+        print(label_to_accuracy)
     
     def local_synchronize(self, update):
         # :brief Synchronize all devices in the cluster with an update.

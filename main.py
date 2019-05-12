@@ -78,7 +78,7 @@ if __name__ == "__main__":
     
     # Set up global queues with the hosts and leader
     pending_work_queues.setup(my_host, other_hosts, leader, other_leaders)
-    node = initialize_current_node(pending_work_queues, 'MNIST', './data', False)
+    node = initialize_current_node(pending_work_queues, 'MNIST', './data', True)
     pending_work_queues.setup_connection_to_node(node)
 
     port = my_host.split(":")[1]
