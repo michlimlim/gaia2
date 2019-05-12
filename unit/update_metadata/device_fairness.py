@@ -73,6 +73,7 @@ def test_update_internal_state_after_aggregation(calc):
     calc.check(state_1.min_epoch_num == 2)
 
 def test_flatten_metadata(calc):
+    calc.context('Test flatten data')
     state_1_d = {
         '127.0.0.1:5000': 0,
         '127.0.0.1:5001': 0,
@@ -95,6 +96,13 @@ def test_flatten_metadata(calc):
     },
     ], ['127.0.0.1:5000', '127.0.0.1:5001', '127.0.0.1:5002', '127.0.0.1:5004'])
     calc.check(flattened == [[1, 3, 4, 0], [0, 0, 3, 1], [3, 0, 0, 0]])
+
+    flattened = state_1.flatten_metadata([{
+        'localhost:5002': 43.83552038295578, 
+        'localhost:5000': 59.19772371856732, 
+        'localhost:5001': 62.88011229893692}], 
+        ['localhost:5000', 'localhost:5001', 'localhost:5002'])
+    calc.check(flattened == [[59.19772371856732, 62.88011229893692, 43.83552038295578]])
 
 def test_update_internal_state_after_aggregation(calc):
     state_1_d = {

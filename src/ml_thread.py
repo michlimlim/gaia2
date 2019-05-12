@@ -50,7 +50,7 @@ class Solver(object):
         if torch.cuda.is_available():
             self.net = self.net.cuda()
         self.condition = Condition()
-        self.ten_recent_loss_list = deque(100*[0.000], 100)
+        self.ten_recent_loss_list = deque(50*[0.000], 50)
 
     # :brief nn.module.parameters() yields a generator of nn.Parameter, but unfortunately
     #   we can't use it to later the original, so we need to remember pointers for each
@@ -59,42 +59,53 @@ class Solver(object):
     def get_nn_module_parameter_pointers(self, nn_module):
         return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
-    def minibatch_backprop_and_update_weights(self, minibatch_idx, images, labels):
-        images = Variable(images).view(-1, self.image_dim)
-        labels = Variable(labels)
-        if torch.cuda.is_available():
-            images = images.cuda()
-            labels = labels.cuda()
+    def minibatch_backprop_and_update_weights(self, minibatches, idx, freq):
+        
+        self.weights_before = {
+            idx: params.clone() for idx, params in self.parameter_pointers.items()
+        }
 
-        logits = self.net(images)
-        loss = self.loss_fn(logits, labels)
-        self.optimizer.zero_grad()
-        loss.backward()
+        j = idx
+
+        # Run backprop freq times
+        while j < idx + freq and j < len(minibatches):
+            images, labels = minibatches[j]
+            images = Variable(images).view(-1, self.image_dim)
+            labels = Variable(labels)
+            if torch.cuda.is_available():
+                images = images.cuda()
+                labels = labels.cuda()
+            logits = self.net(images)
+            loss = self.loss_fn(logits, labels)
+            loss.backward()
+            # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
+            minibatch_loss = float(loss.data) / len(images)
+            self.ten_recent_loss_list.appendleft(minibatch_loss)
+            j += 1
 
         # Update weights on this minibatch's gradient
         self.optimizer.step()
+        self.optimizer.zero_grad()
 
-        # Get gradients for this minibatch
-        minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
+        # Get delta_W for this minibatch
+        self.minibatch_updates = {
+            idx: (params - self.weights_before[idx]) for idx, params in self.parameter_pointers.items()
+        }
 
-        # Update internal state after performing one minibatch backprop
-        self.fairness_state.update_internal_state_after_backprop(self.ip_addr)
+        # Reverse internal state change
+        for idx, _ in self.parameter_pointers.items():
+            self.parameter_pointers[idx].data = self.weights_before[idx]
+        # Update metadata sent
+        self.update_metadata = self.fairness_state.update_after_backprop(self.ip_addr, freq)
+        # Send out the model update to other hosts' queues
+        self.sender_queues.enqueue(ModelUpdate(
+            updates=self.minibatch_updates,
+            update_metadata=self.update_metadata).to_json())
 
-        # Wrap these minibatch gadients into a ModelUpdate and send
-        model_update = ModelUpdate(
-            updates=minibatch_updates,
-            update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict)
-        
-        # Enqueue local update to send to other hosts' queues
-        if minibatch_idx % 20 == 0:
-            self.sender_queues.enqueue(model_update.to_json())
+        print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
+        self.evaluate()
 
-        # Calculate loss for this minibatch, averaged across no. of examples in this minibatch
-        minibatch_loss = float(loss.data) / len(images)
-        self.ten_recent_loss_list.appendleft(minibatch_loss)
-        if minibatch_idx % 20 == 0:
-            print(f"Minibatch {minibatch_idx} | loss: {minibatch_loss:.4f}")
-        return
+        return j
     
     def aggregate_received_updates(self):
         metadata_list = []
@@ -123,16 +134,15 @@ class Solver(object):
             except EmptyQueueError:
                 # print('EMPTY Q:', host_id)
                 continue
-
-        # Return if empty
-        if len(metadata_list) == 0:
-            return
         
         # Remove duplicate host id's
+        if self.minibatch_updates != None:
+            metadata_list.append(self.update_metadata)
+            weight_list.append(self.minibatch_updates)
+            host_id_list.extend(self.update_metadata.keys())
         host_id_list = set(host_id_list)
-
-        metadata_list.append(self.fairness_state.device_ip_addr_to_epoch_dict)
-        weight_list.append(self.parameter_pointers)
+        self.minibatch_updates = None
+        self.update_metadata = None
         flattened_metadata_list = self.fairness_state.flatten_metadata(metadata_list, host_id_list)
         alphas = self.fairness_state.get_alphas(flattened_metadata_list)
 
@@ -149,28 +159,33 @@ class Solver(object):
             host_id_list)
         # Update weights by overwriting self.parameter_pointers
         for idx, _ in self.parameter_pointers.items():
-            self.parameter_pointers[idx] = sum([
+            # PyTorch doesn’t allow in-place operations on variables you create directly
+            # (such as parameters of your model). Hence the verbose y = y + x syntax.
+            # print(weight_list)
+            sum_updates = sum([
                 alpha * weight[idx] for alpha, weight in zip(alphas, weight_list)])
+            #print("sum updates for", idx, sum_updates)
+            #print("parameterpointers for", idx, self.parameter_pointers[idx].data)
+            self.parameter_pointers[idx].data = self.parameter_pointers[idx].data + sum_updates
+            # print("combo", idx, self.parameter_pointers[idx].data)
         return
 
     def train(self):
+        freq = 5
         start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
-        #  and not self.convergent()
-        while i < len(minibatches): 
+        while i < len(minibatches) and not self.convergent(): 
             # Check if we can backprop
-            images, labels = minibatches[i]
-            self.minibatch_backprop_and_update_weights(i, images, labels)
-            #if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
-            #if self.curr_epoch % 5 == 0:
-            #    print("Initiating Inter-cluster non-blocking communication")
-            #    self.sender_queues.enqueue(model_update.to_json(), True)
-            #if self.curr_epoch % 2 == 0:
-            #    print("Initiating Local Synchronization")
-            #    self.local_synchronize(model_update.to_json())
-            i += 1
-            while self.pending_work_queues.total_no_of_updates > 0:
+            i = self.minibatch_backprop_and_update_weights(minibatches, i, freq)
+                #if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
+                #if self.curr_epoch % 5 == 0:
+                #    print("Initiating Inter-cluster non-blocking communication")
+                #    self.sender_queues.enqueue(model_update.to_json(), True)
+                #if self.curr_epoch % 2 == 0:
+                #    print("Initiating Local Synchronization")
+                #    self.local_synchronize(model_update.to_json())
+            while self.pending_work_queues.total_no_of_updates > 0 or self.minibatch_updates != None:
                 # Aggregate
                 self.aggregate_received_updates()
 
@@ -185,9 +200,9 @@ class Solver(object):
 
     # Convergence criteria: when our loss value changes by less than 2% over the course of 10 iterations
     def convergent(self):
-        if self.ten_recent_loss_list[0] != 0.0000 and self.ten_recent_loss_list[99] != 0.0000:
-            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[99]
-            diff_percentage = diff / self.ten_recent_loss_list[99]
+        if self.ten_recent_loss_list[0] != 0.0000 and self.ten_recent_loss_list[49] != 0.0000:
+            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[49]
+            diff_percentage = diff / self.ten_recent_loss_list[49]
             return abs(diff_percentage) < 0.0200
         return False
             

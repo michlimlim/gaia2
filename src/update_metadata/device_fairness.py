@@ -55,9 +55,9 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     #    - alphas [array<float>]
     def get_alphas(self, v):
         # The Federated AVG
-        return [1.00/len(v)] * len(v)
+        # return [1.00/len(v)] * len(v)
         # Our method
-        #return get_weights(v)
+        return get_weights(v)
 
     def flatten_metadata(self, metadata_list, host_id_list):
         v = []
@@ -146,8 +146,17 @@ class DeviceFairnessReceiverState(UpdateReceiverState):
     #     We do this because we don't want to perform too much wasted work by rushing
     #     ahead and endlessly performing backprop even when we're in an unfair state (our updates dominate)
     def update_internal_state_after_backprop(self, device_ip_addr: str):
+        if device_ip_addr not in self.device_ip_addr_to_epoch_dict:
+                self.device_ip_addr_to_epoch_dict[device_ip_addr ] = 0
         epoch_num = self.device_ip_addr_to_epoch_dict[device_ip_addr]
         self._update_device_examples(device_ip_addr, epoch_num + 1)
+
+    def update_after_backprop(self, device_ip_addr: str, number_to_add:int):
+        metadata = self.device_ip_addr_to_epoch_dict
+        if device_ip_addr not in metadata:
+                metadata[device_ip_addr] = 0
+        metadata[device_ip_addr] += number_to_add
+        return metadata
 
     # :param: host_to_model_update [dict<str, ModelUpdate>] host_ip map to ModelUpdate
     # :param: my_device_ip_addr [str] my own device ip address. this param allows us to treat
