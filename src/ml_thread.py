@@ -194,15 +194,13 @@ class Solver(object):
                 #    self.local_synchronize(model_update.to_json())
 
             # To model synchronicity
-            while self.pending_work_queues.total_no_of_updates < len(self.pending_work_queues.other_hosts):
-                 # print(self.pending_work_queues)
-                 time.sleep(0.0001)
-            self.aggregate_received_updates()
+            # while self.pending_work_queues.total_no_of_updates < len(self.pending_work_queues.other_hosts):
+            #      time.sleep(0.0001)
+            # self.aggregate_received_updates()
 
             # Normal way: 
-            # while self.pending_work_queues.total_no_of_updates > 0:
-                # Aggregate
-                # self.aggregate_received_updates()
+            while self.pending_work_queues.total_no_of_updates > 0:
+                self.aggregate_received_updates()
 
         if self.convergent():
             print("Converge at Minibatch ", i)
