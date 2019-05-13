@@ -6,28 +6,45 @@ import threading
 import json
 import sys
 import requests
+import time
 
 app = Flask(__name__)
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-pending_work_queues = PendingWork(100)
-
 class MlThread(object):
     # params: node [Solver] instance of Solver object
     def __init__(self, node):
         self.node = node
+        self.close = False
     def run(self):
         t = threading.Thread(target=self._actually_run)
         t.start()
     def _actually_run(self):
         self.node.train()
         # self.node.evaluate()
+        while self.close == False:
+            # print("in loop", self.close)
+            self.node.send_after_death()
+        self.node.evaluate()
+        self.node.evaluate_matrix()
+        return
+
+pending_work_queues = PendingWork(100)
+node = None
+ml_thread = None
 
 @app.route("/")
 def hello():
     return "App is running"
+
+@app.route("/close", methods=['GET', 'POST'])
+def close():
+    print("Signaled to close by", request.json['sender'])
+    ml_thread.close = True
+    print("changed to True")
+    return "Close is running"
 
 @app.route("/send_update", methods=['GET', 'POST'])
 def receive_update():
@@ -76,14 +93,22 @@ if __name__ == "__main__":
     for i in range(6, leaders_head):
         other_hosts.append(sys.argv[i])
     
+    port = my_host.split(":")[1]
+    
     # Set up global queues with the hosts and leader
     pending_work_queues.setup(my_host, other_hosts, leader, other_leaders)
-    node = initialize_current_node(pending_work_queues, 'MNIST', './data', True)
-    pending_work_queues.setup_connection_to_node(node)
-
-    port = my_host.split(":")[1]
-    ml_thread = MlThread(node)
     threading.Thread(target=app.run, kwargs=dict(host="localhost", port=port)).start()
-    ml_thread.run()
+    
+    for i in range(10):
+        # For purpose of automating evaluations, we changed ML thread to not actually be a thread
+        pending_work_queues.setup_connection_to_node(node)
+        node = initialize_current_node(pending_work_queues, 'MNIST', './data', True)
+        ml_thread = MlThread(node)
+        print("experiment", i)
+        ml_thread._actually_run()
+        print("changed to False")
+        ml_thread.close = False
+
+
 
 

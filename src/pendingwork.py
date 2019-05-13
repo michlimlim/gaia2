@@ -18,6 +18,7 @@ class PendingWork(object):
         self.lock = RLock()
         self.my_host = ''
         self.other_hosts = []
+        self.other_leaders = []
         self.num_devices = 0
         self.total_no_of_updates = 0
         self.min_queue_len = None

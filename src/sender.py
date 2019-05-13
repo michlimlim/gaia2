@@ -117,6 +117,8 @@ class Sender(object):
             return
         if 'CLEAR' in update:
             res = requests.post("http://" + host + "/clear_all_queues", json={"sender": self.my_host, "epoch": update['epoch']})
+        elif 'CLOSE' in update:
+                        res = requests.post("http://" + host + "/close", json={"sender": self.my_host})
         else:
             res = requests.post("http://" + host + "/send_update", json={"sender": self.my_host, "update": update})
         if res.status_code >= 400 and res.status_code < 500:

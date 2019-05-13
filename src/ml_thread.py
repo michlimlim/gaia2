@@ -50,7 +50,7 @@ class Solver(object):
         if torch.cuda.is_available():
             self.net = self.net.cuda()
         self.condition = Condition()
-        self.ten_recent_loss_list = deque(50*[0.000], 50)
+        self.ten_recent_loss_list = deque(10*[0.000], 10)
 
     # :brief nn.module.parameters() yields a generator of nn.Parameter, but unfortunately
     #   we can't use it to later the original, so we need to remember pointers for each
@@ -60,7 +60,7 @@ class Solver(object):
         return { str(idx): params for idx, params in enumerate(self.net.parameters()) }
 
     def minibatch_backprop_and_update_weights(self, minibatches, idx, freq):
-        self.evaluate_matrix()
+        # self.evaluate_matrix()
         
         self.net.train()
 
@@ -90,15 +90,28 @@ class Solver(object):
         self.fairness_state.update_internal_state_after_backprop(self.ip_addr, freq)
         # Send out the model update to other hosts' queues
         # if self.ip_addr == 'localhost:5000':
-        #     time.sleep(1)
+             # time.sleep(1)
+        minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
+        # if self.ip_addr == "localhost:5000":
+        #     if j % 10 ==0:
+        #         self.sender_queues.enqueue(ModelUpdate(
+        #             updates=minibatch_updates,
+        #             update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict).to_json())
+        #         return j
+        # else:
+        self.sender_queues.enqueue(ModelUpdate(
+            updates=minibatch_updates,
+            update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict).to_json())
+        # print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
+
+        return j
+    
+    def send_after_death(self):
         minibatch_updates = { idx: params.clone() for idx, params in self.parameter_pointers.items() }
         self.sender_queues.enqueue(ModelUpdate(
             updates=minibatch_updates,
             update_metadata=self.fairness_state.device_ip_addr_to_epoch_dict).to_json())
-
-        print(f"Minibatch {j-1} | loss: {minibatch_loss:.4f}")
-
-        return j
+        
     
     def aggregate_received_updates(self):
         metadata_list = []
@@ -169,8 +182,7 @@ class Solver(object):
         start_time = time.time()
         minibatches = list(self.train_loader)
         i = 0
-        while i < len(minibatches):
-        # and not self.convergent() 
+        while i < len(minibatches) and not self.convergent(): 
             # Check if we can backprop
             i = self.minibatch_backprop_and_update_weights(minibatches, i, freq)
                 #if self.pending_work_queues.is_leader() and self.curr_epoch > 1 and (self.curr_epoch % 2 == 0 or self.curr_epoch % 5 == 0):
@@ -180,24 +192,33 @@ class Solver(object):
                 #if self.curr_epoch % 2 == 0:
                 #    print("Initiating Local Synchronization")
                 #    self.local_synchronize(model_update.to_json())
-            while self.pending_work_queues.total_no_of_updates > 0:
+
+            # To model synchronicity
+            while self.pending_work_queues.total_no_of_updates < len(self.pending_work_queues.other_hosts):
+                 # print(self.pending_work_queues)
+                 time.sleep(0.0001)
+            self.aggregate_received_updates()
+
+            # Normal way: 
+            # while self.pending_work_queues.total_no_of_updates > 0:
                 # Aggregate
-                self.aggregate_received_updates()
+                # self.aggregate_received_updates()
 
         if self.convergent():
             print("Converge at Minibatch ", i)
         if i == len(minibatches):
             print("Ran out of examples")
         print("Time Taken:", time.time()-start_time)
-        self.evaluate()
-        return
+        print("Sending close signal")
+        self.sender_queues.enqueue({"CLOSE" : True})
+        return True
 
 
     # Convergence criteria: when our loss value changes by less than 2% over the course of 10 iterations
     def convergent(self):
-        if self.ten_recent_loss_list[0] != 0.0000 and self.ten_recent_loss_list[49] != 0.0000:
-            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[49]
-            diff_percentage = diff / self.ten_recent_loss_list[49]
+        if self.ten_recent_loss_list[0] != 0.0000 and self.ten_recent_loss_list[9] != 0.0000:
+            diff = self.ten_recent_loss_list[0] - self.ten_recent_loss_list[9]
+            diff_percentage = diff / self.ten_recent_loss_list[9]
             return abs(diff_percentage) < 0.0200
         return False
             

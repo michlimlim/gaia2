@@ -1,5 +1,6 @@
 import torch.nn as nn
 import numpy as np
+import torch
 
 class Net(nn.Module):
     def __init__(self, image_dim=28*28):
@@ -11,7 +12,9 @@ class Net(nn.Module):
             nn.ReLU(),
             nn.Linear(500, 100),
             nn.ReLU(),
-            nn.Linear(100, 10)) 
+            nn.Linear(100, 10))
+
+        torch.manual_seed(2)
              
         self.net.apply(weights_init_uniform)     
             
