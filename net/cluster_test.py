@@ -55,14 +55,14 @@ if __name__ == "__main__":
         G.add_node(arr[i].ID)
 
     #Create an all-all graph
-    #for i in range(0, num):
-    #    for j in range(i, num):
-    #        if i != j:
-    #            createEdge(arr[i], arr[j])
+    for i in range(0, num):
+        for j in range(i, num):
+            if i != j:
+                createEdge(arr[i], arr[j])
 
     #Create a simple cyclic graph
-    for i in range(0, num):
-        createEdge(arr[i], arr[(i + 1) % num])
+    #for i in range(0, num):
+    #    createEdge(arr[i], arr[(i + 1) % num])
     #    drawGraph(arr, i)
 
     drawGraph(arr, -1)
