@@ -1,9 +1,7 @@
-## Architecture diagram I drew is here:
-Slide 26 of [Shiqiang presentation](https://docs.google.com/presentation/d/1Dtv1gzUL4RYNRVZy3klMeuQvE4mSCzqIr4H5uZWfZK8/edit#slide=id.p)
+# Data-Driven, Bottom-up, Asynchronous Federated Learning
 
-## Evaluation results and charts are here:
-[Evaluation Results!](https://docs.google.com/spreadsheets/d/1ji5fK3A6w5Z5J2BaNI0rOgBkhw1p8eWiYvdOftzuJw4/edit#gid=787187439)
-Each tab is labelled. I performed around 10 experiments for each setting. 
+Federated learning (FL) is a distributed machine learning approach that can train a model on decentralized sets of data without the data ever leaving their host devices. The predominant FL model is the Google FL protocol (GFL), which is a top-down, synchronous and time-division resource allocation system. It faces several issues, such as increased bias in selecting data and inability to scale beyond a small number of devices. In this project, we design and investigate an alternative FL architecture to address the challenges of GFL. Our system is a bottom-up, data-driven, asynchronous resource allocation system, that maximizes key resources consisting of samples, computation, and bandwidth. 
+
 
 ## Terminal commands
 
