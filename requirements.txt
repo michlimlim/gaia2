@@ -4,6 +4,6 @@ itsdangerous==1.1.0
 Jinja2==2.10.1
 MarkupSafe==1.1.1
 torch==1.0.1.post2
-Werkzeug==0.15.2
+Werkzeug==0.15.5
 requests>=2.20.0
 mock>=3.0.3
